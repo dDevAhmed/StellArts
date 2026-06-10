@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
-from src.schemas.nft import NFTCreate, NFTResponse
+from src.schemas.nft import NFTCreate, NFTRead
 
 # 1. Define the router instead of trying to use 'app'
 router = APIRouter()

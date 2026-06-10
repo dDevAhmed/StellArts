@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from src.api.routes import marketplace, auctions, users, user.py # Import your fixed route file
+from src.api.routes import marketplace, user
 
 # Metadata for your tags to make the UI look professional
 tags_metadata = [
@@ -24,11 +24,10 @@ app = FastAPI(
     # Optional: You can also move the schema logic to match
     openapi_url="/api/openapi.json",
     redoc_url="/api/redoc"
-    # Include the router so the app knows about the endpoints
-    app.include_router(user.router, prefix="/api/v1")
 )
+
+# Include the router so the app knows about the endpoints
+app.include_router(user.router, prefix="/api/v1")
 
 # Register non-minting routers
 app.include_router(marketplace.router, prefix="/api/v1/market")
-app.include_router(auctions.router, prefix="/api/v1/auctions")
-app.include_router(users.router, prefix="/api/v1/users")
