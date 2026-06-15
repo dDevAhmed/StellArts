@@ -93,7 +93,8 @@ Follow these steps to set up the development environment.
    ```
 2. Install dependencies:
    ```bash
-   npm install
+   # We use --ignore-scripts to bypass broken third-party post-install scripts
+   npm install --ignore-scripts
    ```
 3. Start the development server:
    ```bash
