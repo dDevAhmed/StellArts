@@ -53,7 +53,9 @@ async def fetch_events(cursor: str) -> list[dict]:
         "method": "getEvents",
         "params": {
             "startLedger": cursor,
-            "filters": [{"type": "contract", "contractIds": [settings.ESCROW_CONTRACT_ID]}],
+            "filters": [
+                {"type": "contract", "contractIds": [settings.ESCROW_CONTRACT_ID]}
+            ],
             "pagination": {"limit": 100},
         },
     }
