@@ -1,3 +1,4 @@
+import asyncio
 import os
 from contextlib import asynccontextmanager
 
@@ -13,7 +14,6 @@ from app.core.config import settings
 from app.core.exceptions import register_exception_handlers
 from app.db.session import get_db
 from app.workers.soroban_event_worker import run_worker
-import asyncio
 
 
 @asynccontextmanager
