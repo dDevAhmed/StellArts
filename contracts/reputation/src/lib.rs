@@ -81,9 +81,10 @@ fn has_engagement_been_rated(env: &Env, escrow_contract_id: &Address, engagement
 }
 
 fn mark_engagement_rated(env: &Env, escrow_contract_id: &Address, engagement_id: u64) {
-    env.storage()
-        .persistent()
-        .set(&engagement_rated_key(escrow_contract_id, engagement_id), &true);
+    env.storage().persistent().set(
+        &engagement_rated_key(escrow_contract_id, engagement_id),
+        &true,
+    );
 }
 
 #[contract]
@@ -168,7 +169,9 @@ impl ReputationContract {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use escrow::{DataKey as EscrowDataKey, Escrow, EscrowContract, Status as EscrowContractStatus};
+    use escrow::{
+        DataKey as EscrowDataKey, Escrow, EscrowContract, Status as EscrowContractStatus,
+    };
     use soroban_sdk::testutils::Address as _;
     use soroban_sdk::{Address, Env};
 
@@ -201,7 +204,11 @@ mod tests {
         let reputation_contract_id = env.register_contract(None, ReputationContract);
         let escrow_contract_id = env.register_contract(None, EscrowContract);
         let reputation_client = ReputationContractClient::new(env, &reputation_contract_id);
-        (reputation_contract_id, reputation_client, escrow_contract_id)
+        (
+            reputation_contract_id,
+            reputation_client,
+            escrow_contract_id,
+        )
     }
 
     #[test]
