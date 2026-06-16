@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from stellar_sdk import TransactionEnvelope
 
-from app.core.auth import require_admin, require_client, require_client_or_artisan
+from app.core.auth import require_admin, require_client
 from app.core.config import settings
 from app.db.session import get_db
 from app.models.booking import Booking

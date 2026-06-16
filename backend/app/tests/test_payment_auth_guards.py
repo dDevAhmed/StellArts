@@ -1,7 +1,7 @@
 """Test authentication guards on payment release and refund endpoints."""
-import pytest
-from fastapi import status
 from decimal import Decimal
+
+from fastapi import status
 
 
 def test_unauthenticated_release_returns_401(client):
@@ -37,12 +37,12 @@ def test_client_cannot_release_payment(client):
         "phone": "1234567890",
     }
     client.post("api/v1/auth/register", json=register_data)
-    
+
     login_data = {"email": "client@example.com", "password": "StrongPass1!"}
     login_resp = client.post("api/v1/auth/login", json=login_data)
     tokens = login_resp.json()
     headers = {"Authorization": f"Bearer {tokens['access_token']}"}
-    
+
     release_data = {
         "booking_id": "00000000-0000-0000-0000-000000000000",
         "artisan_public": "GD123456789",
@@ -63,12 +63,12 @@ def test_artisan_cannot_release_payment(client):
         "phone": "1234567890",
     }
     client.post("api/v1/auth/register", json=register_data)
-    
+
     login_data = {"email": "artisan@example.com", "password": "StrongPass1!"}
     login_resp = client.post("api/v1/auth/login", json=login_data)
     tokens = login_resp.json()
     headers = {"Authorization": f"Bearer {tokens['access_token']}"}
-    
+
     release_data = {
         "booking_id": "00000000-0000-0000-0000-000000000000",
         "artisan_public": "GD123456789",
@@ -89,12 +89,12 @@ def test_client_cannot_refund_payment(client):
         "phone": "1234567890",
     }
     client.post("api/v1/auth/register", json=register_data)
-    
+
     login_data = {"email": "client2@example.com", "password": "StrongPass1!"}
     login_resp = client.post("api/v1/auth/login", json=login_data)
     tokens = login_resp.json()
     headers = {"Authorization": f"Bearer {tokens['access_token']}"}
-    
+
     refund_data = {
         "booking_id": "00000000-0000-0000-0000-000000000000",
         "client_public": "GD123456789",
@@ -115,12 +115,12 @@ def test_artisan_cannot_refund_payment(client):
         "phone": "1234567890",
     }
     client.post("api/v1/auth/register", json=register_data)
-    
+
     login_data = {"email": "artisan2@example.com", "password": "StrongPass1!"}
     login_resp = client.post("api/v1/auth/login", json=login_data)
     tokens = login_resp.json()
     headers = {"Authorization": f"Bearer {tokens['access_token']}"}
-    
+
     refund_data = {
         "booking_id": "00000000-0000-0000-0000-000000000000",
         "client_public": "GD123456789",
@@ -132,8 +132,9 @@ def test_artisan_cannot_refund_payment(client):
 
 def test_admin_can_release_payment(client, db_session):
     """Test that admin role can access /payments/release."""
-    from app.models.user import User
     from app.core.security import get_password_hash
+
+    from app.models.user import User
     
     # Create admin user directly in DB
     admin_user = User(
@@ -147,13 +148,13 @@ def test_admin_can_release_payment(client, db_session):
     )
     db_session.add(admin_user)
     db_session.commit()
-    
+
     # Login as admin
     login_data = {"email": "admin@example.com", "password": "AdminPass1!"}
     login_resp = client.post("api/v1/auth/login", json=login_data)
     tokens = login_resp.json()
     headers = {"Authorization": f"Bearer {tokens['access_token']}"}
-    
+
     release_data = {
         "booking_id": "00000000-0000-0000-0000-000000000000",
         "artisan_public": "GD123456789",
@@ -166,8 +167,9 @@ def test_admin_can_release_payment(client, db_session):
 
 def test_admin_can_refund_payment(client, db_session):
     """Test that admin role can access /payments/refund."""
-    from app.models.user import User
     from app.core.security import get_password_hash
+
+    from app.models.user import User
     
     # Create admin user directly in DB
     admin_user = User(
@@ -181,13 +183,13 @@ def test_admin_can_refund_payment(client, db_session):
     )
     db_session.add(admin_user)
     db_session.commit()
-    
+
     # Login as admin
     login_data = {"email": "admin2@example.com", "password": "AdminPass1!"}
     login_resp = client.post("api/v1/auth/login", json=login_data)
     tokens = login_resp.json()
     headers = {"Authorization": f"Bearer {tokens['access_token']}"}
-    
+
     refund_data = {
         "booking_id": "00000000-0000-0000-0000-000000000000",
         "client_public": "GD123456789",

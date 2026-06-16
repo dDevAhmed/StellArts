@@ -11,6 +11,7 @@ from app.core.email_verification import (
     generate_verification_token,
     verify_verification_token,
 )
+from app.core.limiter import limiter
 from app.core.security import (
     blacklist_token,
     create_access_token,
@@ -21,7 +22,6 @@ from app.core.security import (
     verify_password,
 )
 from app.db.session import get_db
-from app.main import limiter
 from app.models.user import User
 from app.schemas.user import (
     LoginRequest,
