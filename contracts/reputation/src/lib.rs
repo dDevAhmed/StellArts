@@ -1,12 +1,13 @@
 #![no_std]
 
-use soroban_sdk::{contract, contractimpl, contracttype, Address, Env};
+use soroban_sdk::{contract, contractclient, contractimpl, contracttype, Address, Env};
 
-/// Storage key for user reputation data
+/// Storage key for user reputation data and per-engagement rating flags.
 #[contracttype]
 #[derive(Clone)]
 enum DataKey {
     Reputation(Address),
+    EngagementRated(Address, u64),
 }
 
 #[contracttype]
@@ -16,7 +17,7 @@ pub struct RateArtisanEvent {
     pub timestamp: u64,
 }
 
-/// Public struct containing aggregated review data for a user
+/// Public struct containing aggregated review data for a user.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq, Default)]
 pub struct ReputationData {
@@ -24,18 +25,65 @@ pub struct ReputationData {
     pub review_count: u64,
 }
 
-/// Helper function to read reputation data for a user
-/// Returns default values (0 total_stars, 0 review_count) if user has no existing reputation
+/// Mirrors the escrow contract status layout for cross-contract decoding.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum EscrowStatus {
+    Pending,
+    Funded,
+    InProgress,
+    Released,
+    Refunded,
+    Disputed,
+    Resolved,
+}
+
+/// Mirrors the escrow contract engagement layout for cross-contract decoding.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EscrowEngagement {
+    pub client: Address,
+    pub artisan: Address,
+    pub arbitrator: Address,
+    pub token: Address,
+    pub amount: i128,
+    pub status: EscrowStatus,
+    pub deadline: u64,
+}
+
+#[contractclient(name = "EscrowVerifierClient")]
+pub trait EscrowVerifier {
+    fn get_engagement(env: Env, engagement_id: u64) -> EscrowEngagement;
+}
+
+/// Helper function to read reputation data for a user.
+/// Returns default values (0 total_stars, 0 review_count) if user has no existing reputation.
 pub fn read_reputation(env: &Env, user: &Address) -> ReputationData {
     let key = DataKey::Reputation(user.clone());
     env.storage().persistent().get(&key).unwrap_or_default()
 }
 
-/// Helper function to write reputation data for a user
-/// Uses Persistent storage for all user reputation data
+/// Helper function to write reputation data for a user.
 pub fn write_reputation(env: &Env, user: &Address, data: &ReputationData) {
     let key = DataKey::Reputation(user.clone());
     env.storage().persistent().set(&key, data);
+}
+
+fn engagement_rated_key(escrow_contract_id: &Address, engagement_id: u64) -> DataKey {
+    DataKey::EngagementRated(escrow_contract_id.clone(), engagement_id)
+}
+
+fn has_engagement_been_rated(env: &Env, escrow_contract_id: &Address, engagement_id: u64) -> bool {
+    env.storage()
+        .persistent()
+        .get(&engagement_rated_key(escrow_contract_id, engagement_id))
+        .unwrap_or(false)
+}
+
+fn mark_engagement_rated(env: &Env, escrow_contract_id: &Address, engagement_id: u64) {
+    env.storage()
+        .persistent()
+        .set(&engagement_rated_key(escrow_contract_id, engagement_id), &true);
 }
 
 #[contract]
@@ -43,26 +91,57 @@ pub struct ReputationContract;
 
 #[contractimpl]
 impl ReputationContract {
-    /// Get reputation data for a user
+    /// Get reputation data for a user.
     pub fn get_reputation(env: Env, user: Address) -> ReputationData {
         read_reputation(&env, &user)
     }
 
-    /// Set reputation data for a user (for testing/admin purposes)
+    /// Set reputation data for a user (for testing/admin purposes).
     pub fn set_reputation(env: Env, user: Address, data: ReputationData) {
         write_reputation(&env, &user, &data);
     }
 
-    // update and persist an artisan’s reputation score
-    pub fn rate_artisan(env: Env, artisan: Address, stars: u64) {
+    /// Update and persist an artisan's reputation score after verifying the completed escrow.
+    pub fn rate_artisan(
+        env: Env,
+        client: Address,
+        artisan: Address,
+        stars: u64,
+        escrow_contract_id: Address,
+        engagement_id: u64,
+    ) {
+        client.require_auth();
+
         if !(1..=5).contains(&stars) {
             panic!("stars not in range");
         }
+
+        if has_engagement_been_rated(&env, &escrow_contract_id, engagement_id) {
+            panic!("engagement already rated");
+        }
+
+        let escrow_client = EscrowVerifierClient::new(&env, &escrow_contract_id);
+        let engagement = escrow_client.get_engagement(&engagement_id);
+
+        if engagement.client != client {
+            panic!("client did not participate in engagement");
+        }
+
+        if engagement.artisan != artisan {
+            panic!("artisan does not match engagement");
+        }
+
+        match engagement.status {
+            EscrowStatus::Released | EscrowStatus::Resolved => {}
+            _ => panic!("engagement is not completed"),
+        }
+
         let mut artisan_data = Self::get_reputation(env.clone(), artisan.clone());
         artisan_data.total_stars += stars;
         artisan_data.review_count += 1;
 
         Self::set_reputation(env.clone(), artisan.clone(), artisan_data);
+        mark_engagement_rated(&env, &escrow_contract_id, engagement_id);
 
         env.events().publish(
             (),
@@ -74,9 +153,8 @@ impl ReputationContract {
         );
     }
 
-    /// Get reputation statistics for a user
-    /// Returns (average_scaled_by_100, count)
-    /// Example: 9 total stars / 2 reviews = 4.5 average → returns (450, 2)
+    /// Get reputation statistics for a user.
+    /// Returns (average_scaled_by_100, count).
     pub fn get_stats(env: Env, user: Address) -> (u64, u64) {
         let data = read_reputation(&env, &user);
         if data.review_count == 0 {
@@ -90,8 +168,41 @@ impl ReputationContract {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use escrow::{DataKey as EscrowDataKey, Escrow, EscrowContract, Status as EscrowContractStatus};
     use soroban_sdk::testutils::Address as _;
-    use soroban_sdk::Env;
+    use soroban_sdk::{Address, Env};
+
+    fn seed_escrow(
+        env: &Env,
+        escrow_contract_id: &Address,
+        engagement_id: u64,
+        client: &Address,
+        artisan: &Address,
+        status: EscrowContractStatus,
+    ) {
+        let escrow = Escrow {
+            client: client.clone(),
+            artisan: artisan.clone(),
+            arbitrator: Address::generate(env),
+            token: Address::generate(env),
+            amount: 1_000,
+            status,
+            deadline: env.ledger().timestamp() + 1_000,
+        };
+
+        env.as_contract(escrow_contract_id, || {
+            env.storage()
+                .persistent()
+                .set(&EscrowDataKey::Escrow(engagement_id), &escrow);
+        });
+    }
+
+    fn setup_contracts(env: &Env) -> (Address, ReputationContractClient<'_>, Address) {
+        let reputation_contract_id = env.register_contract(None, ReputationContract);
+        let escrow_contract_id = env.register_contract(None, EscrowContract);
+        let reputation_client = ReputationContractClient::new(env, &reputation_contract_id);
+        (reputation_contract_id, reputation_client, escrow_contract_id)
+    }
 
     #[test]
     fn test_default_reputation_data() {
@@ -103,13 +214,11 @@ mod tests {
     #[test]
     fn test_contract_get_reputation_no_data() {
         let env = Env::default();
-        let contract_id = env.register_contract(None, ReputationContract);
-        let client = ReputationContractClient::new(&env, &contract_id);
+        let (_, client, _) = setup_contracts(&env);
 
         let user = Address::generate(&env);
         let reputation = client.get_reputation(&user);
 
-        // Verifies that read_reputation returns default values (0, 0) when no reputation exists
         assert_eq!(reputation.total_stars, 0);
         assert_eq!(reputation.review_count, 0);
     }
@@ -117,8 +226,7 @@ mod tests {
     #[test]
     fn test_contract_set_and_get_reputation() {
         let env = Env::default();
-        let contract_id = env.register_contract(None, ReputationContract);
-        let client = ReputationContractClient::new(&env, &contract_id);
+        let (_, client, _) = setup_contracts(&env);
 
         let user = Address::generate(&env);
         let data = ReputationData {
@@ -126,10 +234,7 @@ mod tests {
             review_count: 20,
         };
 
-        // Test write_reputation helper through contract
         client.set_reputation(&user, &data);
-
-        // Test read_reputation helper through contract
         let retrieved = client.get_reputation(&user);
 
         assert_eq!(retrieved.total_stars, 100);
@@ -139,23 +244,25 @@ mod tests {
     #[test]
     fn test_multiple_users_independent_reputation() {
         let env = Env::default();
-        let contract_id = env.register_contract(None, ReputationContract);
-        let client = ReputationContractClient::new(&env, &contract_id);
+        let (_, client, _) = setup_contracts(&env);
 
         let user1 = Address::generate(&env);
         let user2 = Address::generate(&env);
 
-        let data1 = ReputationData {
-            total_stars: 50,
-            review_count: 10,
-        };
-        let data2 = ReputationData {
-            total_stars: 75,
-            review_count: 15,
-        };
-
-        client.set_reputation(&user1, &data1);
-        client.set_reputation(&user2, &data2);
+        client.set_reputation(
+            &user1,
+            &ReputationData {
+                total_stars: 50,
+                review_count: 10,
+            },
+        );
+        client.set_reputation(
+            &user2,
+            &ReputationData {
+                total_stars: 75,
+                review_count: 15,
+            },
+        );
 
         let retrieved1 = client.get_reputation(&user1);
         let retrieved2 = client.get_reputation(&user2);
@@ -169,24 +276,24 @@ mod tests {
     #[test]
     fn test_update_existing_reputation() {
         let env = Env::default();
-        let contract_id = env.register_contract(None, ReputationContract);
-        let client = ReputationContractClient::new(&env, &contract_id);
+        let (_, client, _) = setup_contracts(&env);
 
         let user = Address::generate(&env);
+        client.set_reputation(
+            &user,
+            &ReputationData {
+                total_stars: 30,
+                review_count: 5,
+            },
+        );
 
-        // Set initial reputation
-        let initial_data = ReputationData {
-            total_stars: 30,
-            review_count: 5,
-        };
-        client.set_reputation(&user, &initial_data);
-
-        // Update reputation
-        let updated_data = ReputationData {
-            total_stars: 80,
-            review_count: 12,
-        };
-        client.set_reputation(&user, &updated_data);
+        client.set_reputation(
+            &user,
+            &ReputationData {
+                total_stars: 80,
+                review_count: 12,
+            },
+        );
 
         let retrieved = client.get_reputation(&user);
         assert_eq!(retrieved.total_stars, 80);
@@ -194,63 +301,215 @@ mod tests {
     }
 
     #[test]
-    fn test_rate_artisan() {
+    fn test_rate_artisan_with_verified_completed_engagement() {
         let env = Env::default();
-        let contract_id = env.register_contract(None, ReputationContract);
-        let client = ReputationContractClient::new(&env, &contract_id);
+        env.mock_all_auths();
+        let (_, client, escrow_contract_id) = setup_contracts(&env);
 
+        let engagement_id = 1;
+        let escrow_client = Address::generate(&env);
         let artisan = Address::generate(&env);
-        client.rate_artisan(&artisan, &2);
-        let reputation = client.get_reputation(&artisan);
+        seed_escrow(
+            &env,
+            &escrow_contract_id,
+            engagement_id,
+            &escrow_client,
+            &artisan,
+            EscrowContractStatus::Released,
+        );
 
-        // Verifies that read_reputation returns default values (0, 0) when no reputation exists
-        assert_eq!(reputation.total_stars, 2);
+        client.rate_artisan(
+            &escrow_client,
+            &artisan,
+            &5,
+            &escrow_contract_id,
+            &engagement_id,
+        );
+
+        let reputation = client.get_reputation(&artisan);
+        assert_eq!(reputation.total_stars, 5);
         assert_eq!(reputation.review_count, 1);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_rate_artisan_requires_auth() {
+        let env = Env::default();
+        let (_, client, escrow_contract_id) = setup_contracts(&env);
+
+        let engagement_id = 1;
+        let escrow_client = Address::generate(&env);
+        let artisan = Address::generate(&env);
+        seed_escrow(
+            &env,
+            &escrow_contract_id,
+            engagement_id,
+            &escrow_client,
+            &artisan,
+            EscrowContractStatus::Released,
+        );
+
+        client.rate_artisan(
+            &escrow_client,
+            &artisan,
+            &5,
+            &escrow_contract_id,
+            &engagement_id,
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "client did not participate in engagement")]
+    fn test_rate_artisan_rejects_random_user() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (_, client, escrow_contract_id) = setup_contracts(&env);
+
+        let engagement_id = 1;
+        let actual_client = Address::generate(&env);
+        let random_user = Address::generate(&env);
+        let artisan = Address::generate(&env);
+        seed_escrow(
+            &env,
+            &escrow_contract_id,
+            engagement_id,
+            &actual_client,
+            &artisan,
+            EscrowContractStatus::Released,
+        );
+
+        client.rate_artisan(
+            &random_user,
+            &artisan,
+            &5,
+            &escrow_contract_id,
+            &engagement_id,
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "engagement is not completed")]
+    fn test_rate_artisan_rejects_unfinished_engagement() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (_, client, escrow_contract_id) = setup_contracts(&env);
+
+        let engagement_id = 1;
+        let escrow_client = Address::generate(&env);
+        let artisan = Address::generate(&env);
+        seed_escrow(
+            &env,
+            &escrow_contract_id,
+            engagement_id,
+            &escrow_client,
+            &artisan,
+            EscrowContractStatus::Funded,
+        );
+
+        client.rate_artisan(
+            &escrow_client,
+            &artisan,
+            &5,
+            &escrow_contract_id,
+            &engagement_id,
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "engagement already rated")]
+    fn test_rate_artisan_prevents_double_rating() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (_, client, escrow_contract_id) = setup_contracts(&env);
+
+        let engagement_id = 1;
+        let escrow_client = Address::generate(&env);
+        let artisan = Address::generate(&env);
+        seed_escrow(
+            &env,
+            &escrow_contract_id,
+            engagement_id,
+            &escrow_client,
+            &artisan,
+            EscrowContractStatus::Released,
+        );
+
+        client.rate_artisan(
+            &escrow_client,
+            &artisan,
+            &5,
+            &escrow_contract_id,
+            &engagement_id,
+        );
+        client.rate_artisan(
+            &escrow_client,
+            &artisan,
+            &4,
+            &escrow_contract_id,
+            &engagement_id,
+        );
     }
 
     #[test]
     #[should_panic(expected = "stars not in range")]
     fn test_rate_artisan_not_in_range() {
         let env = Env::default();
-        let contract_id = env.register_contract(None, ReputationContract);
-        let client = ReputationContractClient::new(&env, &contract_id);
+        env.mock_all_auths();
+        let (_, client, escrow_contract_id) = setup_contracts(&env);
 
+        let engagement_id = 1;
+        let escrow_client = Address::generate(&env);
         let artisan = Address::generate(&env);
-        client.rate_artisan(&artisan, &6);
+        seed_escrow(
+            &env,
+            &escrow_contract_id,
+            engagement_id,
+            &escrow_client,
+            &artisan,
+            EscrowContractStatus::Released,
+        );
+
+        client.rate_artisan(
+            &escrow_client,
+            &artisan,
+            &6,
+            &escrow_contract_id,
+            &engagement_id,
+        );
     }
 
     #[test]
     #[should_panic(expected = "stars not in range")]
     fn test_rate_artisan_not_in_range_zero() {
         let env = Env::default();
-        let contract_id = env.register_contract(None, ReputationContract);
-        let client = ReputationContractClient::new(&env, &contract_id);
+        env.mock_all_auths();
+        let (_, client, escrow_contract_id) = setup_contracts(&env);
 
+        let engagement_id = 1;
+        let escrow_client = Address::generate(&env);
         let artisan = Address::generate(&env);
-        client.rate_artisan(&artisan, &0);
-    }
+        seed_escrow(
+            &env,
+            &escrow_contract_id,
+            engagement_id,
+            &escrow_client,
+            &artisan,
+            EscrowContractStatus::Released,
+        );
 
-    #[test]
-    fn test_rate_artisan_multiple() {
-        let env = Env::default();
-        let contract_id = env.register_contract(None, ReputationContract);
-        let client = ReputationContractClient::new(&env, &contract_id);
-
-        let artisan = Address::generate(&env);
-        client.rate_artisan(&artisan, &2);
-        client.rate_artisan(&artisan, &5);
-        client.rate_artisan(&artisan, &1);
-        let reputation = client.get_reputation(&artisan);
-
-        assert_eq!(reputation.total_stars, 8);
-        assert_eq!(reputation.review_count, 3);
+        client.rate_artisan(
+            &escrow_client,
+            &artisan,
+            &0,
+            &escrow_contract_id,
+            &engagement_id,
+        );
     }
 
     #[test]
     fn test_get_stats() {
         let env = Env::default();
-        let contract_id = env.register_contract(None, ReputationContract);
-        let client = ReputationContractClient::new(&env, &contract_id);
+        let (_, client, _) = setup_contracts(&env);
 
         let artisan = Address::generate(&env);
         client.set_reputation(

@@ -11,7 +11,7 @@ soroban-sdk.workspace = true
 soroban-sdk = { workspace = true, features = ["testutils"] }
 
 [lib]
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
 doctest = false
 
 [features]

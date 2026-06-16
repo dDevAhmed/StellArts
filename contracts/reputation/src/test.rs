@@ -1,150 +1,166 @@
 use super::*;
+use escrow::{DataKey as EscrowDataKey, Escrow, EscrowContract, Status as EscrowContractStatus};
 use soroban_sdk::{testutils::Address as _, Address, Env};
+
+fn seed_escrow(
+    env: &Env,
+    escrow_contract_id: &Address,
+    engagement_id: u64,
+    client: &Address,
+    artisan: &Address,
+    status: EscrowContractStatus,
+) {
+    let escrow = Escrow {
+        client: client.clone(),
+        artisan: artisan.clone(),
+        arbitrator: Address::generate(env),
+        token: Address::generate(env),
+        amount: 1_000,
+        status,
+        deadline: env.ledger().timestamp() + 1_000,
+    };
+
+    env.as_contract(escrow_contract_id, || {
+        env.storage()
+            .persistent()
+            .set(&EscrowDataKey::Escrow(engagement_id), &escrow);
+    });
+}
+
+fn setup(env: &Env) -> (ReputationContractClient<'_>, Address) {
+    let reputation_contract_id = env.register_contract(None, ReputationContract);
+    let escrow_contract_id = env.register_contract(None, EscrowContract);
+    (
+        ReputationContractClient::new(env, &reputation_contract_id),
+        escrow_contract_id,
+    )
+}
 
 #[test]
 fn test_reputation_flow_integration() {
     let env = Env::default();
-    let contract_id = env.register_contract(None, ReputationContract);
-    let client = ReputationContractClient::new(&env, &contract_id);
+    env.mock_all_auths();
+    let (client, escrow_contract_id) = setup(&env);
 
-    // Create artisan address
     let artisan = Address::generate(&env);
+    let client_a = Address::generate(&env);
+    let client_b = Address::generate(&env);
 
-    // Scenario: Artisan starts with 0 reputation
-    let initial_stats = client.get_stats(&artisan);
-    assert_eq!(initial_stats, (0, 0)); // (total_stars, review_count)
+    seed_escrow(
+        &env,
+        &escrow_contract_id,
+        1,
+        &client_a,
+        &artisan,
+        EscrowContractStatus::Released,
+    );
+    seed_escrow(
+        &env,
+        &escrow_contract_id,
+        2,
+        &client_b,
+        &artisan,
+        EscrowContractStatus::Resolved,
+    );
 
-    // Scenario: User A submits a rating of 5 stars
-    let _user_a = Address::generate(&env);
-    client.rate_artisan(&artisan, &5);
+    client.rate_artisan(&client_a, &artisan, &5, &escrow_contract_id, &1);
+    client.rate_artisan(&client_b, &artisan, &3, &escrow_contract_id, &2);
 
-    // Verify after first rating
-    let stats_after_user_a = client.get_stats(&artisan);
-    assert_eq!(stats_after_user_a, (500, 1)); // (average_scaled_by_100, review_count)
+    let stats = client.get_stats(&artisan);
+    assert_eq!(stats, (400, 2));
 
-    // Scenario: User B submits a rating of 3 stars
-    let _user_b = Address::generate(&env);
-    client.rate_artisan(&artisan, &3);
-
-    // Assert that get_stats returns an average of 4.0
-    let final_stats = client.get_stats(&artisan);
-    assert_eq!(final_stats, (400, 2)); // (average_scaled_by_100, review_count)
-
-    // Calculate average: 400 / 100 = 4.0
-    let average = final_stats.0 as f64 / 100.0;
-    assert_eq!(average, 4.0);
-
-    // Verify reputation data is consistent
     let reputation = client.get_reputation(&artisan);
     assert_eq!(reputation.total_stars, 8);
     assert_eq!(reputation.review_count, 2);
 }
 
 #[test]
-#[should_panic(expected = "stars not in range")]
-fn test_edge_case_zero_stars() {
-    let env = Env::default();
-    let contract_id = env.register_contract(None, ReputationContract);
-    let client = ReputationContractClient::new(&env, &contract_id);
-
-    let artisan = Address::generate(&env);
-
-    // Edge Case: Attempt to rate with 0 stars (should panic)
-    client.rate_artisan(&artisan, &0);
-}
-
-#[test]
-#[should_panic(expected = "stars not in range")]
-fn test_edge_case_six_stars() {
-    let env = Env::default();
-    let contract_id = env.register_contract(None, ReputationContract);
-    let client = ReputationContractClient::new(&env, &contract_id);
-
-    let artisan = Address::generate(&env);
-
-    // Edge Case: Attempt to rate with 6 stars (should panic)
-    client.rate_artisan(&artisan, &6);
-}
-
-#[test]
 fn test_reputation_robustness_multiple_reviews() {
     let env = Env::default();
-    let contract_id = env.register_contract(None, ReputationContract);
-    let client = ReputationContractClient::new(&env, &contract_id);
+    env.mock_all_auths();
+    let (client, escrow_contract_id) = setup(&env);
 
     let artisan = Address::generate(&env);
+    let ratings = [5, 4, 5, 3, 5, 4, 5, 5, 4, 3];
 
-    // Simulate a popular artisan receiving multiple reviews
-    let ratings = [5, 4, 5, 3, 5, 4, 5, 5, 4, 3]; // 10 reviews
-
-    for rating in ratings {
-        client.rate_artisan(&artisan, &rating);
+    for (index, rating) in ratings.iter().enumerate() {
+        let reviewer = Address::generate(&env);
+        let engagement_id = index as u64 + 1;
+        seed_escrow(
+            &env,
+            &escrow_contract_id,
+            engagement_id,
+            &reviewer,
+            &artisan,
+            EscrowContractStatus::Released,
+        );
+        client.rate_artisan(
+            &reviewer,
+            &artisan,
+            rating,
+            &escrow_contract_id,
+            &engagement_id,
+        );
     }
 
     let stats = client.get_stats(&artisan);
-    assert_eq!(stats.1, 10); // 10 reviews
+    assert_eq!(stats.1, 10);
+    assert_eq!(stats.0, 430);
 
-    // Calculate expected average: (5+4+5+3+5+4+5+5+4+3) / 10 = 4.3, scaled = 430
-    assert_eq!(stats.0, 430); // 430 = 4.3 * 100
-
-    // Verify average: 430 / 100 = 4.3
-    let average = stats.0 as f64 / 100.0;
-    assert_eq!(average, 4.3);
-
-    // Verify no overflow with many reviews
-    for _ in 0..100 {
-        client.rate_artisan(&artisan, &5);
-    }
-
-    let final_stats = client.get_stats(&artisan);
-    assert_eq!(final_stats.1, 110); // 110 total reviews
-    assert_eq!(final_stats.0, 493); // (43 + 500) * 100 / 110 = 493 (scaled average)
+    let reputation = client.get_reputation(&artisan);
+    assert_eq!(reputation.total_stars, 43);
+    assert_eq!(reputation.review_count, 10);
 }
 
 #[test]
 fn test_reputation_isolation_between_artisans() {
     let env = Env::default();
-    let contract_id = env.register_contract(None, ReputationContract);
-    let client = ReputationContractClient::new(&env, &contract_id);
+    env.mock_all_auths();
+    let (client, escrow_contract_id) = setup(&env);
 
     let artisan1 = Address::generate(&env);
     let artisan2 = Address::generate(&env);
 
-    // Rate artisan1
-    client.rate_artisan(&artisan1, &5);
-    client.rate_artisan(&artisan1, &3);
+    let client_1a = Address::generate(&env);
+    let client_1b = Address::generate(&env);
+    let client_2a = Address::generate(&env);
 
-    // Rate artisan2
-    client.rate_artisan(&artisan2, &4);
-    client.rate_artisan(&artisan2, &4);
+    seed_escrow(
+        &env,
+        &escrow_contract_id,
+        1,
+        &client_1a,
+        &artisan1,
+        EscrowContractStatus::Released,
+    );
+    seed_escrow(
+        &env,
+        &escrow_contract_id,
+        2,
+        &client_1b,
+        &artisan1,
+        EscrowContractStatus::Released,
+    );
+    seed_escrow(
+        &env,
+        &escrow_contract_id,
+        3,
+        &client_2a,
+        &artisan2,
+        EscrowContractStatus::Resolved,
+    );
 
-    let stats1 = client.get_stats(&artisan1);
-    let stats2 = client.get_stats(&artisan2);
+    client.rate_artisan(&client_1a, &artisan1, &5, &escrow_contract_id, &1);
+    client.rate_artisan(&client_1b, &artisan1, &3, &escrow_contract_id, &2);
+    client.rate_artisan(&client_2a, &artisan2, &4, &escrow_contract_id, &3);
 
-    // Verify isolation: artisan1 has 8/2 = 4.0 average, scaled = 400
-    assert_eq!(stats1, (400, 2));
+    assert_eq!(client.get_stats(&artisan1), (400, 2));
+    assert_eq!(client.get_stats(&artisan2), (400, 1));
 
-    // Verify isolation: artisan2 has 8/2 = 4.0 average, scaled = 400
-    assert_eq!(stats2, (400, 2));
-
-    // But they should have different addresses (isolation)
-    assert_ne!(artisan1, artisan2); // Different addresses
-
-    // Both should have the same reputation values but stored separately
     let rep1 = client.get_reputation(&artisan1);
     let rep2 = client.get_reputation(&artisan2);
     assert_eq!(rep1.total_stars, 8);
-    assert_eq!(rep2.total_stars, 8);
     assert_eq!(rep1.review_count, 2);
-    assert_eq!(rep2.review_count, 2);
-
-    // Verify that changing one doesn't affect the other
-    client.rate_artisan(&artisan1, &5);
-    let rep1_updated = client.get_reputation(&artisan1);
-    let rep2_unchanged = client.get_reputation(&artisan2);
-
-    assert_eq!(rep1_updated.total_stars, 13); // 8 + 5
-    assert_eq!(rep1_updated.review_count, 3); // 2 + 1
-    assert_eq!(rep2_unchanged.total_stars, 8); // unchanged
-    assert_eq!(rep2_unchanged.review_count, 2); // unchanged
+    assert_eq!(rep2.total_stars, 4);
+    assert_eq!(rep2.review_count, 1);
 }

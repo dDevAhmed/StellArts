@@ -145,6 +145,14 @@ pub struct EscrowContract;
 
 #[contractimpl]
 impl EscrowContract {
+    /// Read a single engagement by id so other contracts can verify escrow state.
+    pub fn get_engagement(env: Env, engagement_id: u64) -> Escrow {
+        env.storage()
+            .persistent()
+            .get(&DataKey::Escrow(engagement_id))
+            .expect("Escrow not found")
+    }
+
     /// Initialize a new escrow engagement
     /// Creates a new escrow record with Pending status and a per-escrow arbitrator.
     ///
