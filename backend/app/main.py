@@ -12,15 +12,19 @@ from app.core.cache import cache
 from app.core.config import settings
 from app.core.exceptions import register_exception_handlers
 from app.db.session import get_db
+from app.workers.soroban_event_worker import run_worker
+import asyncio
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
-    await cache.initialize()  # Cambio: connect() -> initialize()
+    task = asyncio.create_task(run_worker())
     yield
-    # Shutdown
-    await cache.close()  # Cambio: disconnect() -> close()
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
 
 
 app = FastAPI(
