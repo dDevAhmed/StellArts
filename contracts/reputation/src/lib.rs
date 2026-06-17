@@ -475,7 +475,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "engagement already rated")]
+    #[should_panic(expected = "Already rated")]
     fn test_rate_artisan_prevents_double_rating() {
         let env = Env::default();
         env.mock_all_auths();
