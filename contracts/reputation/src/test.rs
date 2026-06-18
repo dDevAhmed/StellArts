@@ -27,12 +27,17 @@ fn seed_escrow(
     });
 }
 
-fn setup(env: &Env) -> (ReputationContractClient<'_>, Address) {
+fn setup(env: &Env) -> (ReputationContractClient<'_>, Address, Address) {
     let reputation_contract_id = env.register_contract(None, ReputationContract);
     let escrow_contract_id = env.register_contract(None, EscrowContract);
+    let admin = Address::generate(env);
+    env.as_contract(&reputation_contract_id, || {
+        env.storage().persistent().set(&DataKey::Admin, &admin);
+    });
     (
         ReputationContractClient::new(env, &reputation_contract_id),
         escrow_contract_id,
+        admin,
     )
 }
 
@@ -40,7 +45,7 @@ fn setup(env: &Env) -> (ReputationContractClient<'_>, Address) {
 fn test_reputation_flow_integration() {
     let env = Env::default();
     env.mock_all_auths();
-    let (client, escrow_contract_id) = setup(&env);
+    let (client, escrow_contract_id, _) = setup(&env);
 
     let artisan = Address::generate(&env);
     let client_a = Address::generate(&env);
@@ -78,7 +83,7 @@ fn test_reputation_flow_integration() {
 fn test_reputation_robustness_multiple_reviews() {
     let env = Env::default();
     env.mock_all_auths();
-    let (client, escrow_contract_id) = setup(&env);
+    let (client, escrow_contract_id, _) = setup(&env);
 
     let artisan = Address::generate(&env);
     let ratings = [5, 4, 5, 3, 5, 4, 5, 5, 4, 3];
@@ -116,7 +121,7 @@ fn test_reputation_robustness_multiple_reviews() {
 fn test_reputation_isolation_between_artisans() {
     let env = Env::default();
     env.mock_all_auths();
-    let (client, escrow_contract_id) = setup(&env);
+    let (client, escrow_contract_id, _) = setup(&env);
 
     let artisan1 = Address::generate(&env);
     let artisan2 = Address::generate(&env);
