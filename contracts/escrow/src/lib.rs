@@ -76,6 +76,8 @@ pub enum DataKey {
     MultiSigApprovals(u64),
     NextId,
     Oracle,
+    Admin,
+    IsPaused,
 }
 
 #[contracttype]
@@ -145,6 +147,29 @@ pub struct EscrowContract;
 
 #[contractimpl]
 impl EscrowContract {
+    pub fn init_admin(env: Env, admin: Address) {
+        if env.storage().instance().has(&DataKey::Admin) {
+            panic!("Admin already set");
+        }
+        env.storage().instance().set(&DataKey::Admin, &admin);
+    }
+
+    pub fn is_paused(env: &Env) -> bool {
+        env.storage().instance().get(&DataKey::IsPaused).unwrap_or(false)
+    }
+
+    pub fn pause(env: Env) {
+        let admin: Address = env.storage().instance().get(&DataKey::Admin).expect("Admin not set");
+        admin.require_auth();
+        env.storage().instance().set(&DataKey::IsPaused, &true);
+    }
+
+    pub fn unpause(env: Env) {
+        let admin: Address = env.storage().instance().get(&DataKey::Admin).expect("Admin not set");
+        admin.require_auth();
+        env.storage().instance().set(&DataKey::IsPaused, &false);
+    }
+
     /// Read a single engagement by id so other contracts can verify escrow state.
     pub fn get_engagement(env: Env, engagement_id: u64) -> Escrow {
         env.storage()
@@ -172,6 +197,7 @@ impl EscrowContract {
         multisig_signers: Vec<Address>,
         multisig_threshold: u32,
     ) -> u64 {
+        assert!(!Self::is_paused(&env), "contract is paused");
         // Validation: client cannot be the same as artisan
         if client == artisan {
             panic!("Client and artisan cannot be the same address");
@@ -251,6 +277,7 @@ impl EscrowContract {
     /// Deposit funds into escrow for a specific engagement
     /// The client must have previously authorized the escrow contract to spend tokens
     pub fn deposit(env: Env, engagement_id: u64, token: Address) {
+        assert!(!Self::is_paused(&env), "contract is paused");
         // Load the escrow record
         let key = DataKey::Escrow(engagement_id);
         let mut escrow: Escrow = env
@@ -317,6 +344,7 @@ impl EscrowContract {
     /// When the escrow was created with multi-sig enabled, the required number of
     /// signers must have already called `multisig_approve` before this succeeds.
     pub fn release(env: Env, engagement_id: u64, token: Address) {
+        assert!(!Self::is_paused(&env), "contract is paused");
         let key = DataKey::Escrow(engagement_id);
         let mut escrow: Escrow = env
             .storage()
@@ -399,6 +427,7 @@ impl EscrowContract {
     /// this.  Each signer may only approve once.  Once the threshold is reached,
     /// the client can call `release` to transfer funds.
     pub fn multisig_approve(env: Env, engagement_id: u64, signer: Address) {
+        assert!(!Self::is_paused(&env), "contract is paused");
         let key = DataKey::Escrow(engagement_id);
         let escrow: Escrow = env
             .storage()
@@ -591,6 +620,7 @@ impl EscrowContract {
 
     /// Mutually approve and apply an escrow deadline extension.
     pub fn extend_deadline(env: Env, engagement_id: u64, approver: Address, new_deadline: u64) {
+        assert!(!Self::is_paused(&env), "contract is paused");
         let key = DataKey::Escrow(engagement_id);
         let mut escrow: Escrow = env
             .storage()
@@ -653,6 +683,7 @@ impl EscrowContract {
 
     /// Transition escrow status from Funded to InProgress
     pub fn start_job(env: Env, engagement_id: u64) {
+        assert!(!Self::is_paused(&env), "contract is paused");
         let oracle: Address = env
             .storage()
             .persistent()
@@ -682,6 +713,7 @@ impl EscrowContract {
     /// Can be called by either the client or artisan
     /// Transitions the escrow from Funded to Disputed status
     pub fn dispute(env: Env, engagement_id: u64, initiator: Address) {
+        assert!(!Self::is_paused(&env), "contract is paused");
         let key = DataKey::Escrow(engagement_id);
         let mut escrow: Escrow = env
             .storage()
@@ -736,6 +768,7 @@ impl EscrowContract {
         artisan_amount: i128,
         token: Address,
     ) {
+        assert!(!Self::is_paused(&env), "contract is paused");
         // Load escrow
         let key = DataKey::Escrow(engagement_id);
         let mut escrow: Escrow = env
@@ -827,6 +860,7 @@ impl EscrowContract {
     /// Emits a `cleanup` event for each removed escrow so off-chain indexers can
     /// archive the data before it disappears from on-chain storage.
     pub fn cleanup_expired(env: Env, engagement_ids: Vec<u64>) {
+        assert!(!Self::is_paused(&env), "contract is paused");
         for engagement_id in engagement_ids.iter() {
             let key = DataKey::Escrow(engagement_id);
             let escrow: Escrow = match env.storage().persistent().get(&key) {
