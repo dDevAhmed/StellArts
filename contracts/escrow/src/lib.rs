@@ -155,17 +155,28 @@ impl EscrowContract {
     }
 
     pub fn is_paused(env: &Env) -> bool {
-        env.storage().instance().get(&DataKey::IsPaused).unwrap_or(false)
+        env.storage()
+            .instance()
+            .get(&DataKey::IsPaused)
+            .unwrap_or(false)
     }
 
     pub fn pause(env: Env) {
-        let admin: Address = env.storage().instance().get(&DataKey::Admin).expect("Admin not set");
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .expect("Admin not set");
         admin.require_auth();
         env.storage().instance().set(&DataKey::IsPaused, &true);
     }
 
     pub fn unpause(env: Env) {
-        let admin: Address = env.storage().instance().get(&DataKey::Admin).expect("Admin not set");
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .expect("Admin not set");
         admin.require_auth();
         env.storage().instance().set(&DataKey::IsPaused, &false);
     }
