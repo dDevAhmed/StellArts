@@ -54,26 +54,77 @@ LOCATIONS = [
 ]
 
 FIRST_NAMES = [
-    "Emeka", "Chinedu", "Oluwaseun", "Adebayo", "Ibrahim", "Musa",
-    "Chioma", "Ngozi", "Aisha", "Fatima", "Blessing", "Oluwakemi",
-    "Kunle", "Tunde", "Obinna", "Chukwuemeka", "Yusuf", "Abubakar",
-    "Nkechi", "Adaeze", "Folake", "Titilayo", "Suleiman", "Halima",
+    "Emeka",
+    "Chinedu",
+    "Oluwaseun",
+    "Adebayo",
+    "Ibrahim",
+    "Musa",
+    "Chioma",
+    "Ngozi",
+    "Aisha",
+    "Fatima",
+    "Blessing",
+    "Oluwakemi",
+    "Kunle",
+    "Tunde",
+    "Obinna",
+    "Chukwuemeka",
+    "Yusuf",
+    "Abubakar",
+    "Nkechi",
+    "Adaeze",
+    "Folake",
+    "Titilayo",
+    "Suleiman",
+    "Halima",
 ]
 
 LAST_NAMES = [
-    "Okafor", "Adeyemi", "Obi", "Nnamdi", "Balogun", "Ibrahim",
-    "Olawale", "Eze", "Chukwudi", "Adebisi", "Okonkwo", "Nwankwo",
-    "Abubakar", "Olatunji", "Uche", "Mohammed", "Afolabi", "Ogundimu",
+    "Okafor",
+    "Adeyemi",
+    "Obi",
+    "Nnamdi",
+    "Balogun",
+    "Ibrahim",
+    "Olawale",
+    "Eze",
+    "Chukwudi",
+    "Adebisi",
+    "Okonkwo",
+    "Nwankwo",
+    "Abubakar",
+    "Olatunji",
+    "Uche",
+    "Mohammed",
+    "Afolabi",
+    "Ogundimu",
 ]
 
 BUSINESS_PREFIXES = [
-    "Premium", "Expert", "Professional", "Quality", "Master",
-    "Elite", "Superior", "Reliable", "Trusted", "Supreme",
+    "Premium",
+    "Expert",
+    "Professional",
+    "Quality",
+    "Master",
+    "Elite",
+    "Superior",
+    "Reliable",
+    "Trusted",
+    "Supreme",
 ]
 
 BUSINESS_SUFFIXES = [
-    "Works", "Services", "Crafts", "Solutions", "Enterprises",
-    "Hub", "Studio", "Workshop", "Ventures", "Group",
+    "Works",
+    "Services",
+    "Crafts",
+    "Solutions",
+    "Enterprises",
+    "Hub",
+    "Studio",
+    "Workshop",
+    "Ventures",
+    "Group",
 ]
 
 
@@ -83,11 +134,11 @@ def generate_artisan_data(index: int) -> dict:
     last_name = random.choice(LAST_NAMES)
     location_data = random.choice(LOCATIONS)
     specialties = random.choice(SPECIALTIES)
-    
+
     # Add slight random offset to coordinates (within ~10km)
     lat_offset = random.uniform(-0.1, 0.1)
     lon_offset = random.uniform(-0.1, 0.1)
-    
+
     return {
         "email": f"artisan{index}.{first_name.lower()}@example.com",
         "username": f"artisan_{first_name.lower()}_{last_name.lower()}_{index}",
@@ -99,8 +150,8 @@ def generate_artisan_data(index: int) -> dict:
         "experience_years": random.randint(2, 20),
         "hourly_rate": Decimal(str(round(random.uniform(15.0, 150.0), 2))),
         "location": f"{location_data['city']}, Nigeria",
-        "latitude": Decimal(str(round(location_data['lat'] + lat_offset, 6))),
-        "longitude": Decimal(str(round(location_data['lon'] + lon_offset, 6))),
+        "latitude": Decimal(str(round(location_data["lat"] + lat_offset, 6))),
+        "longitude": Decimal(str(round(location_data["lon"] + lon_offset, 6))),
         "is_verified": random.choice([True, True, True, False]),  # 75% verified
         "is_available": random.choice([True, True, True, False]),  # 75% available
         "rating": Decimal(str(round(random.uniform(3.5, 5.0), 2))),
@@ -113,7 +164,7 @@ def generate_client_data(index: int) -> dict:
     first_name = random.choice(FIRST_NAMES)
     last_name = random.choice(LAST_NAMES)
     location_data = random.choice(LOCATIONS)
-    
+
     return {
         "email": f"client{index}.{first_name.lower()}@example.com",
         "username": f"client_{first_name.lower()}_{last_name.lower()}_{index}",
@@ -123,10 +174,12 @@ def generate_client_data(index: int) -> dict:
     }
 
 
-def seed_database(num_artisans: int = 55, num_clients: int = 20, num_bookings: int = 100):
+def seed_database(
+    num_artisans: int = 55, num_clients: int = 20, num_bookings: int = 100
+):
     """Seed the database with fake data."""
     db: Session = SessionLocal()
-    
+
     try:
         # Clear existing data (optional - comment out if you want to keep existing data)
         print("Clearing existing seed data...")
@@ -135,12 +188,12 @@ def seed_database(num_artisans: int = 55, num_clients: int = 20, num_bookings: i
         db.query(Client).filter(Client.address.like("[SEED]%")).delete()
         db.query(User).filter(User.email.like("%@example.com")).delete()
         db.commit()
-        
+
         print(f"Creating {num_artisans} artisans...")
         artisans = []
         for i in range(num_artisans):
             artisan_data = generate_artisan_data(i)
-            
+
             # Create user
             user = User(
                 email=artisan_data["email"],
@@ -154,7 +207,7 @@ def seed_database(num_artisans: int = 55, num_clients: int = 20, num_bookings: i
             )
             db.add(user)
             db.flush()
-            
+
             # Create artisan profile
             artisan = Artisan(
                 user_id=user.id,
@@ -174,15 +227,15 @@ def seed_database(num_artisans: int = 55, num_clients: int = 20, num_bookings: i
             )
             db.add(artisan)
             artisans.append(artisan)
-        
+
         db.commit()
         print(f"✓ Created {len(artisans)} artisans")
-        
+
         print(f"Creating {num_clients} clients...")
         clients = []
         for i in range(num_clients):
             client_data = generate_client_data(i)
-            
+
             # Create user
             user = User(
                 email=client_data["email"],
@@ -196,7 +249,7 @@ def seed_database(num_artisans: int = 55, num_clients: int = 20, num_bookings: i
             )
             db.add(user)
             db.flush()
-            
+
             # Create client profile
             client = Client(
                 user_id=user.id,
@@ -205,25 +258,25 @@ def seed_database(num_artisans: int = 55, num_clients: int = 20, num_bookings: i
             )
             db.add(client)
             clients.append(client)
-        
+
         db.commit()
         print(f"✓ Created {len(clients)} clients")
-        
+
         print(f"Creating {num_bookings} bookings...")
         bookings = []
         for i in range(num_bookings):
             client = random.choice(clients)
             artisan = random.choice(artisans)
-            
+
             # Get artisan specialties
             artisan_specialties = json.loads(artisan.specialties)
             service = random.choice(artisan_specialties)
-            
+
             estimated_hours = Decimal(str(round(random.uniform(2.0, 40.0), 2)))
             labor_cost = artisan.hourly_rate * estimated_hours
             material_cost = Decimal(str(round(random.uniform(50.0, 2000.0), 2)))
             estimated_cost = labor_cost + material_cost
-            
+
             # Random date within last 30 days or next 7 days
             if random.choice([True, False]):
                 # Past booking
@@ -231,16 +284,18 @@ def seed_database(num_artisans: int = 55, num_clients: int = 20, num_bookings: i
             else:
                 # Future booking
                 date = datetime.utcnow() + timedelta(days=random.randint(1, 7))
-            
-            status = random.choice([
-                BookingStatus.PENDING,
-                BookingStatus.CONFIRMED,
-                BookingStatus.IN_PROGRESS,
-                BookingStatus.COMPLETED,
-                BookingStatus.COMPLETED,  # Weight towards completed
-                BookingStatus.CANCELLED,
-            ])
-            
+
+            status = random.choice(
+                [
+                    BookingStatus.PENDING,
+                    BookingStatus.CONFIRMED,
+                    BookingStatus.IN_PROGRESS,
+                    BookingStatus.COMPLETED,
+                    BookingStatus.COMPLETED,  # Weight towards completed
+                    BookingStatus.CANCELLED,
+                ]
+            )
+
             booking = Booking(
                 client_id=client.id,
                 artisan_id=artisan.id,
@@ -258,10 +313,10 @@ def seed_database(num_artisans: int = 55, num_clients: int = 20, num_bookings: i
             )
             db.add(booking)
             bookings.append(booking)
-        
+
         db.commit()
         print(f"✓ Created {len(bookings)} bookings")
-        
+
         print("\n✅ Seed data created successfully!")
         print(f"\nSummary:")
         print(f"  - Artisans: {len(artisans)}")
@@ -270,7 +325,7 @@ def seed_database(num_artisans: int = 55, num_clients: int = 20, num_bookings: i
         print(f"\nAll users have password: 'password123'")
         print(f"Artisan emails: artisan0.*@example.com, artisan1.*@example.com, etc.")
         print(f"Client emails: client0.*@example.com, client1.*@example.com, etc.")
-        
+
     except Exception as e:
         db.rollback()
         print(f"❌ Error seeding database: {e}")
