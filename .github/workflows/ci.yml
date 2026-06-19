@@ -137,6 +137,7 @@ jobs:
 
         docker run --rm --network test-network \
           -e DATABASE_URL=postgresql://stellarts:stellarts_test@test-db:5432/stellarts_test_db \
+          -e SECRET_KEY=test-secret-key \
           stellarts-api:test \
           alembic upgrade head
         
