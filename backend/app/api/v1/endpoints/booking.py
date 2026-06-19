@@ -27,11 +27,14 @@ from app.schemas.booking import (
     BookingCreate,
     BookingResponse,
     BookingStatusUpdate,
+    ProposedSlotResponse,
+    ProposeSlotsRequest,
 )
 from app.services import notification_service
 from app.services.ai_service import ai_service
 from app.services.completion_verification import assess_booking_completion
 from app.services.geolocation import geolocation_service
+from app.services.scheduling import scheduling_service
 from app.services.soroban import transition_to_in_progress
 
 logger = logging.getLogger(__name__)
@@ -546,3 +549,31 @@ async def verify_booking_completion(
         "missing_deliverables": analysis["missing_deliverables"],
         "fundamentally_wrong": analysis["fundamentally_wrong"],
     }
+
+
+@router.post("/propose-slots", response_model=list[ProposedSlotResponse])
+async def propose_slots(
+    payload: ProposeSlotsRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_client_or_artisan),
+):
+    """
+    Propose 2-3 optimal time slots for a job that minimize artisan's transit waste.
+    Respects existing bookings and synced calendar blocks.
+    """
+    # Verify artisan exists
+    artisan = db.query(Artisan).filter(Artisan.id == payload.artisan_id).first()
+    if not artisan:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Artisan with id {payload.artisan_id} not found",
+        )
+
+    slots = await scheduling_service.propose_time_slots(
+        db=db,
+        artisan_id=payload.artisan_id,
+        location=payload.location,
+        estimated_hours=payload.estimated_hours,
+        target_date=payload.target_date,
+    )
+    return slots

@@ -122,3 +122,22 @@ class BookingResponse(BaseModel):
     notes: str | None
     created_at: datetime
     updated_at: datetime | None
+
+
+class ProposeSlotsRequest(BaseModel):
+    """Schema for requesting proposed time slots"""
+
+    artisan_id: int = Field(..., description="ID of the artisan to book")
+    location: str = Field(..., description="Location of the job")
+    estimated_hours: float = Field(..., gt=0, description="Estimated hours for the job")
+    target_date: datetime = Field(..., description="Target date for the job")
+
+
+class ProposedSlotResponse(BaseModel):
+    """Schema for a proposed time slot"""
+
+    start_time: datetime
+    end_time: datetime
+    transit_time_from_preceding_mins: float
+    transit_time_to_succeeding_mins: float
+    total_transit_waste_mins: float

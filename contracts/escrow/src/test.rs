@@ -343,8 +343,7 @@ mod happy_path_tests {
             assert_eq!(
                 ctx.token_client.balance(&ctx.contract_id),
                 amount,
-                "Contract holds current engagement amount at iteration {}",
-                i
+                "Contract holds current engagement amount at iteration {i}",
             );
 
             ctx.release_funds(engagement_id);

@@ -25,18 +25,32 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const fetchRates = useCallback(async () => {
     try {
       const response = await fetch(COINGECKO_URL);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
       const data = await response.json();
       if (data.stellar) {
         setRates({
           XLM: 1,
-          USD: data.stellar.usd,
-          EUR: data.stellar.eur,
-          GBP: data.stellar.gbp,
-          NGN: data.stellar.ngn,
+          USD: data.stellar.usd || 0.12,
+          EUR: data.stellar.eur || 0.11,
+          GBP: data.stellar.gbp || 0.09,
+          NGN: data.stellar.ngn || 140,
         });
       }
     } catch (error) {
-      console.error('Failed to fetch rates:', error);
+      // Log as a warning instead of passing the error object to console.error
+      // to prevent the Next.js dev overlay from hijacking the screen.
+      console.warn('Failed to fetch live exchange rates from CoinGecko. Using default fallbacks.');
+      
+      // Provide reasonable fallback rates so the app still functions
+      setRates({
+        XLM: 1,
+        USD: 0.12,
+        EUR: 0.11,
+        GBP: 0.09,
+        NGN: 140,
+      });
     } finally {
       setLoading(false);
     }

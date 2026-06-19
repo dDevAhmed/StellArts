@@ -58,6 +58,15 @@ class Settings(BaseSettings):
     STRIPE_SECRET_KEY: str | None = None
     STRIPE_PUBLISHABLE_KEY: str | None = None
 
+    # Google Calendar OAuth
+    GOOGLE_CLIENT_ID: str | None = None
+    GOOGLE_CLIENT_SECRET: str | None = None
+
+    # Routing Configuration
+    ROUTING_PROVIDER: str = "osrm"
+    ROUTING_API_URL: str = "http://router.project-osrm.org/route/v1/driving"
+    ROUTING_API_KEY: str | None = None
+
     # Soroban Configuration
     # Optional vision model configuration for completion verification
     VISION_API_URL: str | None = None

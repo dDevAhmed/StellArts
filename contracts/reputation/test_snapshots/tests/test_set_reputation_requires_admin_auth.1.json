@@ -159,11 +159,38 @@
                 "bytes": "0000000000000000000000000000000000000000000000000000000000000001"
               },
               {
-                "symbol": "get_reputation"
+                "symbol": "set_reputation"
               }
             ],
             "data": {
-              "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
+              "vec": [
+                {
+                  "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
+                },
+                {
+                  "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
+                },
+                {
+                  "map": [
+                    {
+                      "key": {
+                        "symbol": "review_count"
+                      },
+                      "val": {
+                        "u64": 2
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "total_stars"
+                      },
+                      "val": {
+                        "u64": 10
+                      }
+                    }
+                  ]
+                }
+              ]
             }
           }
         }
@@ -179,31 +206,160 @@
           "v0": {
             "topics": [
               {
-                "symbol": "fn_return"
+                "symbol": "error"
               },
               {
-                "symbol": "get_reputation"
+                "error": {
+                  "auth": "invalid_action"
+                }
               }
             ],
             "data": {
-              "map": [
+              "vec": [
                 {
-                  "key": {
-                    "symbol": "review_count"
-                  },
-                  "val": {
-                    "u64": 0
-                  }
+                  "string": "Unauthorized function call for address"
                 },
                 {
-                  "key": {
-                    "symbol": "total_stars"
-                  },
-                  "val": {
-                    "u64": 0
-                  }
+                  "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
                 }
               ]
+            }
+          }
+        }
+      },
+      "failed_call": true
+    },
+    {
+      "event": {
+        "ext": "v0",
+        "contract_id": "0000000000000000000000000000000000000000000000000000000000000001",
+        "type_": "diagnostic",
+        "body": {
+          "v0": {
+            "topics": [
+              {
+                "symbol": "error"
+              },
+              {
+                "error": {
+                  "auth": "invalid_action"
+                }
+              }
+            ],
+            "data": {
+              "string": "escalating error to panic"
+            }
+          }
+        }
+      },
+      "failed_call": true
+    },
+    {
+      "event": {
+        "ext": "v0",
+        "contract_id": "0000000000000000000000000000000000000000000000000000000000000001",
+        "type_": "diagnostic",
+        "body": {
+          "v0": {
+            "topics": [
+              {
+                "symbol": "error"
+              },
+              {
+                "error": {
+                  "auth": "invalid_action"
+                }
+              }
+            ],
+            "data": {
+              "string": "caught error from function"
+            }
+          }
+        }
+      },
+      "failed_call": true
+    },
+    {
+      "event": {
+        "ext": "v0",
+        "contract_id": null,
+        "type_": "diagnostic",
+        "body": {
+          "v0": {
+            "topics": [
+              {
+                "symbol": "error"
+              },
+              {
+                "error": {
+                  "auth": "invalid_action"
+                }
+              }
+            ],
+            "data": {
+              "vec": [
+                {
+                  "string": "contract call failed"
+                },
+                {
+                  "symbol": "set_reputation"
+                },
+                {
+                  "vec": [
+                    {
+                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
+                    },
+                    {
+                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
+                    },
+                    {
+                      "map": [
+                        {
+                          "key": {
+                            "symbol": "review_count"
+                          },
+                          "val": {
+                            "u64": 2
+                          }
+                        },
+                        {
+                          "key": {
+                            "symbol": "total_stars"
+                          },
+                          "val": {
+                            "u64": 10
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "failed_call": false
+    },
+    {
+      "event": {
+        "ext": "v0",
+        "contract_id": null,
+        "type_": "diagnostic",
+        "body": {
+          "v0": {
+            "topics": [
+              {
+                "symbol": "error"
+              },
+              {
+                "error": {
+                  "auth": "invalid_action"
+                }
+              }
+            ],
+            "data": {
+              "string": "escalating error to panic"
             }
           }
         }
