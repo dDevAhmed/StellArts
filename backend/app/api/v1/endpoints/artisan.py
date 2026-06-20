@@ -28,6 +28,7 @@ from app.schemas.artisan import (
     NearbyArtisansRequest,
     NearbyArtisansResponse,
     PaginatedArtisans,
+    PortfolioCreate,
 )
 from app.services.artisan import ArtisanService
 from app.services.artisan_service import find_nearby_artisans_cached
@@ -245,7 +246,7 @@ async def geocode_address(
     return geo_result
 
 
-@router.patch("/availability", response_model=ArtisanOut)
+@router.put("/availability", response_model=ArtisanOut)
 async def update_availability(
     availability_data: ArtisanAvailabilityUpdate,
     db: Session = Depends(get_db),
@@ -306,8 +307,7 @@ def get_my_portfolio(
 
 @router.post("/portfolio/add", status_code=201)
 def add_portfolio_item(
-    title: str = None,
-    image_url: str = None,
+    item_in: PortfolioCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_artisan),
 ):
@@ -316,10 +316,10 @@ def add_portfolio_item(
     artisan = service.get_artisan_by_user_id(current_user.id)
     if not artisan:
         raise HTTPException(status_code=404, detail="Artisan profile not found")
-    if not image_url:
-        raise HTTPException(status_code=422, detail="image_url is required")
 
-    item = Portfolio(artisan_id=artisan.id, title=title, image=image_url)
+    item = Portfolio(
+        artisan_id=artisan.id, title=item_in.title, image=item_in.image_url
+    )
     db.add(item)
     db.commit()
     db.refresh(item)
@@ -547,6 +547,12 @@ def delete_artisan(
     current_user: User = Depends(require_admin),
 ):
     """Delete artisan account - admin only"""
+    artisan = db.query(Artisan).filter(Artisan.id == artisan_id).first()
+    if not artisan:
+        raise HTTPException(status_code=404, detail="Artisan not found")
+
+    db.delete(artisan)
+    db.commit()
     return {
         "message": f"Artisan {artisan_id} deleted by admin {current_user.id}",
         "deleted_by": current_user.full_name,

@@ -1,4 +1,5 @@
 # app/api/v1/endpoints/payments.py
+import logging
 import uuid
 from decimal import Decimal
 
@@ -7,7 +8,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from stellar_sdk import TransactionEnvelope
 
-from app.core.auth import require_client, require_client_or_artisan
+from app.core.auth import require_admin, require_client
 from app.core.config import settings
 from app.db.session import get_db
 from app.models.booking import Booking
@@ -19,6 +20,8 @@ from app.services.payments import (
     release_payment,
     submit_signed_payment,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -175,8 +178,13 @@ def submit(
 def release(
     req: ReleaseRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_client),
+    current_user: User = Depends(require_admin),
 ):
+    logger.info(
+        "Admin %s triggered release for payment %s",
+        current_user.id,
+        req.booking_id,
+    )
     try:
         booking_uuid = uuid.UUID(str(req.booking_id))
     except ValueError:
@@ -185,12 +193,6 @@ def release(
     booking = db.query(Booking).filter(Booking.id == booking_uuid).first()
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found")
-
-    if booking.client.user_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You are not authorized to release payment for this booking",
-        )
 
     res = release_payment(db, req.booking_id, req.artisan_public, req.amount)
     if res.get("status") == "error":
@@ -202,8 +204,13 @@ def release(
 def refund(
     req: RefundRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_client_or_artisan),
+    current_user: User = Depends(require_admin),
 ):
+    logger.info(
+        "Admin %s triggered refund for payment %s",
+        current_user.id,
+        req.booking_id,
+    )
     try:
         booking_uuid = uuid.UUID(str(req.booking_id))
     except ValueError:
@@ -212,18 +219,6 @@ def refund(
     booking = db.query(Booking).filter(Booking.id == booking_uuid).first()
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found")
-
-    is_authorized = False
-    if current_user.role == "client" and booking.client.user_id == current_user.id:
-        is_authorized = True
-    elif current_user.role == "artisan" and booking.artisan.user_id == current_user.id:
-        is_authorized = True
-
-    if not is_authorized:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You are not authorized to refund payment for this booking",
-        )
 
     res = refund_payment(db, req.booking_id, req.client_public, req.amount)
     if res.get("status") == "error":

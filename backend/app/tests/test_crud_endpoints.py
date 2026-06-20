@@ -111,7 +111,7 @@ def test_artisan_availability_update_online_offline_and_last_active(client):
     resp = client.post("api/v1/artisans/profile", json=profile_data, headers=headers)
     assert resp.status_code == 200
 
-    offline_resp = client.patch(
+    offline_resp = client.put(
         "api/v1/artisans/availability",
         json={"is_available": False},
         headers=headers,
@@ -124,7 +124,7 @@ def test_artisan_availability_update_online_offline_and_last_active(client):
         offline_data["last_active"].replace("Z", "+00:00")
     )
 
-    online_resp = client.patch(
+    online_resp = client.put(
         "api/v1/artisans/availability",
         json={"is_available": True},
         headers=headers,
@@ -139,7 +139,7 @@ def test_artisan_availability_update_online_offline_and_last_active(client):
 
 
 def test_artisan_availability_requires_authentication(client):
-    resp = client.patch(
+    resp = client.put(
         "api/v1/artisans/availability",
         json={"is_available": False},
     )
@@ -149,7 +149,7 @@ def test_artisan_availability_requires_authentication(client):
 def test_artisan_availability_rejects_non_artisan(client):
     headers = get_auth_headers(client, "not-artisan@test.com", "Pass123!", "client")
 
-    resp = client.patch(
+    resp = client.put(
         "api/v1/artisans/availability",
         json={"is_available": False},
         headers=headers,

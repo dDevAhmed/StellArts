@@ -67,7 +67,7 @@ def _add_item(
     """Helper: add a portfolio item and return the response."""
     return client.post(
         "api/v1/artisans/portfolio/add",
-        params={"title": title, "image_url": image_url},
+        json={"title": title, "image_url": image_url},
         headers=headers,
     )
 
@@ -102,6 +102,8 @@ def test_add_portfolio_item(client):
     """Artisan can add a portfolio item with a URL."""
     headers = _register_and_login(client)
     resp = _add_item(client, headers)
+    if resp.status_code != 201:
+        print("DEBUG:", resp.json())
     assert resp.status_code == 201
     data = resp.json()
     assert data["title"] == "My Work"
@@ -130,7 +132,7 @@ def test_add_portfolio_item_missing_image_url(client):
     headers = _register_and_login(client)
     resp = client.post(
         "api/v1/artisans/portfolio/add",
-        params={"title": "No Image"},
+        json={"title": "No Image"},
         headers=headers,
     )
     assert resp.status_code == 422
@@ -153,7 +155,7 @@ def test_add_portfolio_item_requires_auth(client):
     """Unauthenticated add is rejected."""
     resp = client.post(
         "api/v1/artisans/portfolio/add",
-        params={"title": "Hack", "image_url": "https://example.com/hack.jpg"},
+        json={"title": "Hack", "image_url": "https://example.com/hack.jpg"},
     )
     assert resp.status_code in (401, 403)
 

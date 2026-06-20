@@ -60,6 +60,12 @@ class ArtisanLocationUpdate(BaseModel):
         return v
 
 
+class PortfolioCreate(BaseModel):
+    title: str = Field(..., max_length=200)
+    description: str | None = None
+    image_url: str = Field(..., description="URL of the portfolio image")
+
+
 class ArtisanProfileCreate(BaseModel):
     business_name: str | None = Field(None, max_length=200)
     description: str | None = None

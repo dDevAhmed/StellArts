@@ -17,11 +17,13 @@ os.environ.setdefault("REQUIRE_EMAIL_VERIFICATION", "False")
 
 # Ensure tests run with email verification enforcement disabled by default
 from app.core.config import settings as _settings
+from app.core.limiter import limiter
 from app.db.base import Base
 from app.db.session import get_db
 from app.main import app
 
 _settings.REQUIRE_EMAIL_VERIFICATION = False
+limiter.enabled = False
 
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
