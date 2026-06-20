@@ -78,7 +78,9 @@ class Settings(BaseSettings):
     STELLAR_NETWORK: str = "standalone"  # standalone, testnet, or mainnet
     STELLAR_RPC_URL: str = "http://localhost:8002/soroban/rpc"
     STELLAR_NETWORK_PASSPHRASE: str = "Standalone Network ; September 2022"
+    SOROBAN_NETWORK_PASSPHRASE: str | None = None
     STELLAR_ESCROW_PUBLIC: str | None = None
+    BACKEND_SECRET_KEY: str | None = None
     ESCROW_CONTRACT_ID: str | None = None
     REPUTATION_CONTRACT_ID: str | None = None
 

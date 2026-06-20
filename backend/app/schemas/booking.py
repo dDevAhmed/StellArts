@@ -139,5 +139,24 @@ class ProposedSlotResponse(BaseModel):
     start_time: datetime
     end_time: datetime
     transit_time_from_preceding_mins: float
-    transit_time_to_succeeding_mins: float
     total_transit_waste_mins: float
+
+
+class ReviewCreate(BaseModel):
+    """Schema for creating a new review"""
+    rating: int = Field(..., ge=1, le=5, description="Rating from 1 to 5 stars")
+    comment: str | None = Field(None, description="Optional text comment")
+
+
+class ReviewResponse(BaseModel):
+    """Schema for review response"""
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    booking_id: UUID
+    client_id: int
+    artisan_id: int
+    rating: int
+    comment: str | None
+    created_at: datetime
+

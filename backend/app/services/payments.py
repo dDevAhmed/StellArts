@@ -135,8 +135,7 @@ def release_payment(
     db: Session, booking_id: str, artisan_public: str, amount: Decimal
 ) -> dict[str, Any]:
     """Release funds from escrow to artisan."""
-    if not ESCROW_KEYPAIR:
-        return {"status": "error", "message": "Escrow key not configured"}
+    from app.services import soroban
 
     held = (
         db.query(Payment)
@@ -163,52 +162,49 @@ def release_payment(
             "transaction_hash": already_released.transaction_hash,
         }
 
-    escrow_account = server.load_account(ESCROW_PUBLIC)
-    # memo = f"release-{booking_id}"
-    memo = f"release-{booking_id}"[:MAX_MEMO_LENGTH]
-
-    asset = Asset.native()
-    if held.asset_code.upper() != "XLM":
-        asset = Asset(held.asset_code, held.asset_issuer)
-
-    tx = (
-        TransactionBuilder(
-            source_account=escrow_account,
-            network_passphrase=NETWORK_PASSPHRASE,
-            base_fee=BASE_FEE,
-        )
-        .add_text_memo(memo)
-        .append_payment_op(
-            destination=artisan_public,
-            amount=_sanitize_amount(amount),
-            asset=asset,
-        )
-        .build()
-    )
-    tx.sign(ESCROW_KEYPAIR)
-
     try:
-        resp = server.submit_transaction(tx)
-        tx_hash = resp["hash"]
+        engagement_id = int(uuid.UUID(booking_id).int >> 64) % 1000000
+        client_address = held.from_account
+        token = held.asset_issuer if held.asset_issuer else held.asset_code
+
+        # Build XDR
+        unsigned_xdr = soroban.prepare_escrow_release(
+            engagement_id=engagement_id,
+            client_address=client_address,
+            token=token,
+        )
+
+        # The backend needs to sign it before submission.
+        from stellar_sdk import TransactionEnvelope
+        tx = TransactionEnvelope.from_xdr(unsigned_xdr, network_passphrase=soroban.get_network_passphrase())
+        
+        signer = soroban.get_backend_signer()
+        if not signer:
+            return {"status": "error", "message": "Backend signer not configured"}
+            
+        tx.sign(signer)
+        signed_xdr = tx.to_xdr()
+
+        # Submit
+        result = soroban.submit_soroban_transaction(signed_xdr)
+        tx_hash = result["hash"]
+
         return _record_payment(
             db,
             booking_id,
             tx_hash,
             PaymentStatus.RELEASED,
             amount,
-            ESCROW_PUBLIC,
+            ESCROW_PUBLIC or "escrow",
             artisan_public,
-            memo,
+            f"release-{booking_id}"[:MAX_MEMO_LENGTH],
             held.asset_code,
             held.asset_issuer,
         )
-    except (BadRequestError, BadResponseError) as e:
-        db.rollback()
-        return {"status": "error", "message": str(e)}
     except Exception as e:
         return {
             "status": "error",
-            "message": f"Database error after Stellar success: {e}",
+            "message": f"Soroban contract invocation failed: {e}",
         }
 
 
@@ -305,39 +301,25 @@ def prepare_payment(
     asset_code: str = "XLM",
     asset_issuer: str | None = None,
 ) -> dict[str, Any]:
-    """Build an **unsigned** Stellar transaction envelope for a hold.
-
-    The frontend will take the returned XDR, prompt the user via their wallet
-    to sign it, and then submit the signed XDR to ``submit_signed_payment``.
-    """
-    memo = f"hold-{booking_id}"[:MAX_MEMO_LENGTH]
-    from stellar_sdk import Account, Asset
-
-    source_account = Account(account=client_public, sequence=0)
-
-    if asset_code.upper() == "XLM":
-        asset = Asset.native()
-    else:
-        asset = Asset(asset_code, asset_issuer)
-
-    tx = (
-        TransactionBuilder(
-            source_account=source_account,
-            network_passphrase=NETWORK_PASSPHRASE,
-            base_fee=BASE_FEE,
+    """Build an **unsigned** Stellar transaction envelope for a hold."""
+    from app.services import soroban
+    
+    token = asset_issuer if asset_issuer else asset_code
+    amount_int = int(amount * Decimal("10000000"))
+    
+    try:
+        unsigned_xdr = soroban.prepare_escrow_deposit(
+            booking_id=booking_id,
+            client_address=client_public,
+            token=token,
+            amount=amount_int
         )
-        .add_text_memo(memo)
-        .append_payment_op(
-            destination=ESCROW_PUBLIC,
-            amount=_sanitize_amount(amount),
-            asset=asset,
-        )
-        .build()
-    )
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
     return {
         "status": "prepared",
-        "unsigned_xdr": tx.to_xdr(),
+        "unsigned_xdr": unsigned_xdr,
         "booking_id": booking_id,
         "amount": str(amount),
     }
