@@ -137,9 +137,11 @@ def release_payment(
     """Release funds from escrow to artisan."""
     from app.services import soroban
 
+    booking_uuid = uuid.UUID(booking_id)
+
     held = (
         db.query(Payment)
-        .filter(Payment.booking_id == booking_id, Payment.status == PaymentStatus.HELD)
+        .filter(Payment.booking_id == booking_uuid, Payment.status == PaymentStatus.HELD)
         .first()
     )
     if not held:
@@ -151,7 +153,7 @@ def release_payment(
     already_released = (
         db.query(Payment)
         .filter(
-            Payment.booking_id == booking_id, Payment.status == PaymentStatus.RELEASED
+            Payment.booking_id == booking_uuid, Payment.status == PaymentStatus.RELEASED
         )
         .first()
     )

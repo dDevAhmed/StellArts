@@ -1,7 +1,7 @@
+from decimal import Decimal
 from unittest.mock import patch
-from uuid import UUID
+from uuid import uuid4
 
-from app.models.payment import Payment, PaymentStatus
 from app.services import payments
 
 
@@ -130,14 +130,11 @@ def test_hold_endpoint_removed(client):
     assert resp.status_code in (404, 405)
 
 
-def test_release_payment_uses_soroban(monkeypatch, client, db_session):
+def test_release_payment_uses_soroban(client, db_session):
     """
     release_payment should call soroban.prepare_escrow_release and
     submit_soroban_transaction instead of the old Horizon path.
     """
-    from decimal import Decimal
-    from uuid import uuid4
-
     from app.models.payment import Payment, PaymentStatus
 
     booking_uuid = uuid4()
@@ -162,31 +159,25 @@ def test_release_payment_uses_soroban(monkeypatch, client, db_session):
             "app.services.soroban.prepare_escrow_release",
             return_value=FAKE_SOROBAN_XDR,
         ),
-        patch(
-            "app.services.soroban.get_backend_signer",
-        ) as mock_signer,
+        patch("app.services.soroban.get_backend_signer") as mock_signer,
         patch(
             "app.services.soroban.submit_soroban_transaction",
             return_value={"status": "SUCCESS", "hash": "SOROBANHASH"},
         ),
+        patch("stellar_sdk.TransactionEnvelope.from_xdr") as mock_env,
     ):
         from stellar_sdk import Keypair
 
         mock_signer.return_value = Keypair.random()
+        mock_tx = mock_env.return_value
+        mock_tx.to_xdr.return_value = FAKE_SOROBAN_XDR
 
-        # Also need to patch TransactionEnvelope.from_xdr used inside release_payment
-        with patch(
-            "stellar_sdk.TransactionEnvelope.from_xdr"
-        ) as mock_env:
-            mock_tx = mock_env.return_value
-            mock_tx.to_xdr.return_value = FAKE_SOROBAN_XDR
-
-            result = payments.release_payment(
-                db=db_session,
-                booking_id=str(booking_uuid),
-                artisan_public="GARTISAN",
-                amount=Decimal("75.0"),
-            )
+        result = payments.release_payment(
+            db=db_session,
+            booking_id=str(booking_uuid),
+            artisan_public="GARTISAN",
+            amount=Decimal("75.0"),
+        )
 
     assert result.get("status") != "error", result.get("message")
     assert result.get("transaction_hash") == "SOROBANHASH"
