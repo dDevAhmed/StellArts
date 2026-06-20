@@ -18,6 +18,7 @@ from app.workers.soroban_event_worker import run_worker
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    await cache.initialize()
     task = asyncio.create_task(run_worker())
     yield
     task.cancel()
@@ -25,6 +26,7 @@ async def lifespan(app: FastAPI):
         await task
     except asyncio.CancelledError:
         pass
+    await cache.close()
 
 
 app = FastAPI(
