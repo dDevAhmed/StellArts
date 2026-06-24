@@ -1,4 +1,5 @@
 """Test rate limiting on auth endpoints."""
+
 import pytest
 from fastapi import status
 

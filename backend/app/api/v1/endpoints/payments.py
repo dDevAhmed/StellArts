@@ -8,10 +8,12 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from stellar_sdk import TransactionEnvelope
 
-from app.core.auth import require_admin, require_client
+from app.core.auth import require_admin, require_client, require_client_or_artisan
 from app.core.config import settings
 from app.db.session import get_db
 from app.models.booking import Booking
+from app.models.client import Client
+from app.models.payment import Payment
 from app.models.user import User
 from app.services import payments as payments_service
 from app.services.payments import (
@@ -50,6 +52,93 @@ class RefundRequest(BaseModel):
     booking_id: str
     client_public: str
     amount: Decimal = Field(..., gt=0)
+
+
+class PaymentHistoryItem(BaseModel):
+    id: str
+    booking_id: str
+    amount: Decimal
+    transaction_hash: str | None
+    status: str
+    asset_code: str
+    created_at: str
+    service: str | None = None
+    counterparty: str | None = None
+
+
+@router.get("/my-payments", summary="List payment history for current user")
+def my_payments(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_client_or_artisan),
+):
+    """Return payments associated with the current user's bookings."""
+    booking_ids: list[uuid.UUID] = []
+
+    if current_user.role == "client":
+        client = db.query(Client).filter(Client.user_id == current_user.id).first()
+        if client:
+            booking_ids = [
+                row[0]
+                for row in db.query(Booking.id)
+                .filter(Booking.client_id == client.id)
+                .all()
+            ]
+    elif current_user.role == "artisan":
+        from app.models.artisan import Artisan
+
+        artisan = db.query(Artisan).filter(Artisan.user_id == current_user.id).first()
+        if artisan:
+            booking_ids = [
+                row[0]
+                for row in db.query(Booking.id)
+                .filter(Booking.artisan_id == artisan.id)
+                .all()
+            ]
+
+    if not booking_ids:
+        return []
+
+    payments = (
+        db.query(Payment)
+        .filter(Payment.booking_id.in_(booking_ids))
+        .order_by(Payment.created_at.desc())
+        .all()
+    )
+
+    results: list[PaymentHistoryItem] = []
+    for payment in payments:
+        booking = db.query(Booking).filter(Booking.id == payment.booking_id).first()
+        service = booking.service if booking else None
+        counterparty = None
+        if booking:
+            if current_user.role == "client" and booking.artisan:
+                counterparty = (
+                    booking.artisan.user.full_name
+                    if booking.artisan.user
+                    else f"Artisan #{booking.artisan_id}"
+                )
+            elif current_user.role == "artisan" and booking.client:
+                counterparty = (
+                    booking.client.user.full_name
+                    if booking.client.user
+                    else f"Client #{booking.client_id}"
+                )
+
+        results.append(
+            PaymentHistoryItem(
+                id=str(payment.id),
+                booking_id=str(payment.booking_id),
+                amount=payment.amount,
+                transaction_hash=payment.transaction_hash,
+                status=payment.status.value if payment.status else "pending",
+                asset_code=payment.asset_code,
+                created_at=payment.created_at.isoformat(),
+                service=service,
+                counterparty=counterparty,
+            )
+        )
+
+    return results
 
 
 # The old /hold endpoint has been removed due to security concerns. Clients

@@ -127,20 +127,74 @@ export interface BookingCreate {
   notes?: string | null;
 }
 
+export type BookingStatus =
+  | "pending"
+  | "confirmed"
+  | "in_progress"
+  | "completed"
+  | "cancelled"
+  | "disputed";
+
 export interface BookingResponse {
   id: string;
   client_id: number;
   artisan_id: number;
   artisan_name?: string;
+  client_name?: string;
   service: string;
   date: string | null;
   estimated_cost: number | null;
   estimated_hours: number | null;
-  status: string;
+  status: BookingStatus | string;
   location: string | null;
   notes: string | null;
   created_at: string;
   updated_at: string | null;
+}
+
+export interface BookingStatusUpdateResponse {
+  message: string;
+  updated_by: number;
+  new_status: string;
+  status: string;
+}
+
+export interface PreparePaymentRequest {
+  booking_id: string;
+  amount: number;
+  client_public: string;
+  asset_code?: string;
+  asset_issuer?: string | null;
+}
+
+export interface PreparePaymentResponse {
+  status: string;
+  unsigned_xdr: string;
+  booking_id: string;
+  amount: string;
+}
+
+export interface SubmitPaymentRequest {
+  signed_xdr: string;
+}
+
+export interface SubmitPaymentResponse {
+  status: string;
+  payment_id?: string;
+  transaction_hash?: string;
+  message?: string;
+}
+
+export interface PaymentRecord {
+  id: string;
+  booking_id: string;
+  amount: number;
+  transaction_hash: string | null;
+  status: string;
+  asset_code: string;
+  created_at: string;
+  service?: string;
+  counterparty?: string;
 }
 
 export interface NotificationItem {
@@ -287,6 +341,35 @@ export const api = {
       request<BookingResponse>("/bookings/create", {
         method: "POST",
         body: JSON.stringify(body),
+        token,
+      }),
+
+    updateStatus: (bookingId: string, status: BookingStatus, token: string) =>
+      request<BookingStatusUpdateResponse>(`/bookings/${bookingId}/status`, {
+        method: "PUT",
+        body: JSON.stringify({ status }),
+        token,
+      }),
+  },
+
+  payments: {
+    prepare: (body: PreparePaymentRequest, token: string) =>
+      request<PreparePaymentResponse>("/payments/prepare", {
+        method: "POST",
+        body: JSON.stringify(body),
+        token,
+      }),
+
+    submit: (body: SubmitPaymentRequest, token: string) =>
+      request<SubmitPaymentResponse>("/payments/submit", {
+        method: "POST",
+        body: JSON.stringify(body),
+        token,
+      }),
+
+    myPayments: (token: string) =>
+      request<PaymentRecord[]>("/payments/my-payments", {
+        method: "GET",
         token,
       }),
   },

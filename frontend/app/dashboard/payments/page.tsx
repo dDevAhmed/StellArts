@@ -1,88 +1,160 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import Link from "next/link";
-import Navbar from "../../../components/ui/Navbar";
-import Footer from "../../../components/ui/Footer";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
+import { WalletConnectionBar } from "@/components/payments/WalletConnectionBar";
+import { PaymentCard } from "@/components/payments/PaymentCard";
+import { PaymentModal } from "@/components/payments/PaymentModal";
+import { PaymentHistory } from "@/components/payments/PaymentHistory";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "../../../components/ui/card";
-import { useAuth } from "../../../context/AuthContext";
-import { useWallet } from "../../../context/WalletContext";
-import { ArrowLeft, Wallet } from "lucide-react";
+} from "@/components/ui/card";
+import { api, type BookingResponse, type PaymentRecord } from "@/lib/api";
+import { normalizeBookingStatus } from "@/lib/bookings";
+import { useAuth } from "@/context/AuthContext";
+import { useWallet } from "@/context/WalletContext";
+import { useToast } from "@/context/ToastContext";
 
 export default function DashboardPaymentsPage() {
-  const router = useRouter();
-  const { isAuthenticated, isLoading } = useAuth();
-  const { isConnected, address, connect } = useWallet();
+  const { token, user } = useAuth();
+  const {
+    walletAddress,
+    isConnected,
+    isConnecting,
+    connectWallet,
+    disconnectWallet,
+  } = useWallet();
+  const { addToast } = useToast();
 
-  if (!isLoading && !isAuthenticated) {
-    router.replace("/login?redirect=/dashboard/payments");
-    return null;
-  }
+  const [bookings, setBookings] = useState<BookingResponse[]>([]);
+  const [payments, setPayments] = useState<PaymentRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedBooking, setSelectedBooking] = useState<BookingResponse | null>(
+    null,
+  );
+  const [modalOpen, setModalOpen] = useState(false);
+
+  const loadData = useCallback(async () => {
+    if (!token) return;
+    setLoading(true);
+    try {
+      const [bookingData, paymentData] = await Promise.all([
+        api.bookings.myBookings(token),
+        api.payments.myPayments(token),
+      ]);
+      setBookings(bookingData);
+      setPayments(paymentData);
+    } catch (err) {
+      addToast(
+        err instanceof Error ? err.message : "Failed to load payments",
+        "error",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [token, addToast]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const pendingPayments = useMemo(
+    () =>
+      bookings.filter(
+        (booking) => normalizeBookingStatus(booking.status) === "confirmed",
+      ),
+    [bookings],
+  );
+
+  const handleConnect = async () => {
+    try {
+      await connectWallet();
+    } catch {
+      addToast("Failed to connect wallet", "error");
+    }
+  };
+
+  const handlePayNow = (booking: BookingResponse) => {
+    if (!isConnected) {
+      addToast("Connect your wallet before paying", "warning");
+      return;
+    }
+    setSelectedBooking(booking);
+    setModalOpen(true);
+  };
+
+  const userRole = user?.role ?? "client";
 
   return (
-    <div className="min-h-screen bg-white">
-      <Navbar />
-      <main className="pt-24 pb-16 px-4 max-w-4xl mx-auto">
-        <Link
-          href="/dashboard"
-          className="inline-flex items-center text-gray-600 hover:text-blue-600 mb-6"
-        >
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Dashboard
-        </Link>
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Payments</h1>
-        <p className="text-gray-600 mb-8">
-          Fund escrow, release payments, and view payment history.
-        </p>
+    <>
+      <DashboardHeader
+        title="Payments"
+        description="Fund escrow, release payments, and view payment history."
+      />
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Wallet className="w-5 h-5" />
-              Stellar wallet
-            </CardTitle>
-            <CardDescription>
-              Connect your wallet to fund escrow and release payments to
-              artisans.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {isConnected && address ? (
-              <p className="text-sm font-mono text-gray-700 bg-gray-100 px-3 py-2 rounded-md">
-                Connected: {address.slice(0, 8)}…{address.slice(-8)}
-              </p>
-            ) : (
-              <button
-                type="button"
-                onClick={connect}
-                className="rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
-              >
-                Connect wallet
-              </button>
-            )}
-          </CardContent>
-        </Card>
+      <WalletConnectionBar
+        walletAddress={walletAddress}
+        isConnected={isConnected}
+        isConnecting={isConnecting}
+        onConnect={handleConnect}
+        onDisconnect={disconnectWallet}
+      />
 
-        <Card className="mt-6">
-          <CardHeader>
-            <CardTitle>Payment history</CardTitle>
-            <CardDescription>
-              Escrow and release history will appear here once the payment API
-              is wired (build-hold / submit flow).
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-gray-500">No payments yet.</p>
-          </CardContent>
-        </Card>
-      </main>
-      <Footer />
-    </div>
+      <section className="mt-8">
+        <h2 className="mb-4 text-lg font-semibold text-gray-900">
+          Pending Payments
+        </h2>
+        {loading ? (
+          <p className="text-sm text-gray-500">Loading…</p>
+        ) : userRole !== "client" ? (
+          <p className="text-sm text-gray-500">
+            Payment actions are available to clients with confirmed bookings.
+          </p>
+        ) : pendingPayments.length === 0 ? (
+          <p className="text-sm text-gray-500">No pending payments.</p>
+        ) : (
+          <div className="space-y-4">
+            {pendingPayments.map((booking) => (
+              <PaymentCard
+                key={booking.id}
+                booking={booking}
+                userRole={userRole}
+                onPayNow={handlePayNow}
+              />
+            ))}
+          </div>
+        )}
+      </section>
+
+      <Card className="mt-8">
+        <CardHeader>
+          <CardTitle>Payment History</CardTitle>
+          <CardDescription>
+            Completed escrow transactions for your bookings.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <PaymentHistory payments={payments} loading={loading} />
+        </CardContent>
+      </Card>
+
+      {token && (
+        <PaymentModal
+          booking={selectedBooking}
+          open={modalOpen}
+          token={token}
+          userRole={userRole}
+          onClose={() => {
+            setModalOpen(false);
+            setSelectedBooking(null);
+          }}
+          onSuccess={loadData}
+        />
+      )}
+    </>
   );
 }
