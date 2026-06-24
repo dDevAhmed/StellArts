@@ -23,7 +23,7 @@ function ThemeToggle() {
     <button
       onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
       aria-label="Toggle dark mode"
-      className="p-2 rounded-md text-gray-600 hover:text-blue-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-blue-400 dark:hover:bg-gray-800 transition-colors"
+      className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
     >
       {resolvedTheme === 'dark' ? (
         <Sun className="w-5 h-5" />
@@ -41,14 +41,14 @@ function WalletButton() {
     const short = `${address.slice(0, 4)}...${address.slice(-4)}`;
     return (
       <div className="flex items-center gap-3">
-        <span className="text-sm font-mono text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded-full">
+        <span className="text-sm font-mono text-muted-foreground bg-muted px-3 py-1 rounded-full">
           {short}
         </span>
         <Button
           variant="outline"
           size="sm"
           onClick={disconnect}
-          className="border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300"
+          className="border-border text-muted-foreground hover:text-foreground"
         >
           Disconnect
         </Button>
@@ -71,13 +71,13 @@ export default function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-700 w-full">
+    <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border w-full">
       <nav className="mx-auto max-w-6xl px-6 py-4">
         <div className="flex items-center justify-between">
 
           {/* Logo */}
           <Link href="/" className="flex items-center">
-            <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center overflow-hidden">
+            <div className="w-10 h-10 bg-accent rounded-lg flex items-center justify-center overflow-hidden">
               <Image
                 src="/Stellarts.png"
                 alt="Stellarts Logo"
@@ -86,25 +86,25 @@ export default function Navbar() {
                 className="object-contain"
               />
             </div>
-            <span className="ml-2 text-xl font-bold text-gray-900 dark:text-gray-100 hidden md:block">
+            <span className="ml-2 text-xl font-bold text-foreground hidden md:block">
               Stellarts
             </span>
           </Link>
 
           {/* Desktop Nav */}
           <div className="hidden md:flex items-center space-x-8">
-            <Link href="/#features" className="text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400">
+            <Link href="/#features" className="text-muted-foreground hover:text-foreground transition-colors">
               Features
             </Link>
-            <Link href="/#use-cases" className="text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400">
+            <Link href="/#use-cases" className="text-muted-foreground hover:text-foreground transition-colors">
               Use Cases
             </Link>
-            <Link href="/#why-stellar" className="text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400">
+            <Link href="/#why-stellar" className="text-muted-foreground hover:text-foreground transition-colors">
               Why Stellar
             </Link>
 
             {isAuthenticated && (
-              <Link href="/dashboard" className="text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400">
+              <Link href="/dashboard" className="text-muted-foreground hover:text-foreground transition-colors">
                 Dashboard
               </Link>
             )}
@@ -122,7 +122,7 @@ export default function Navbar() {
                 variant="outline"
                 size="sm"
                 onClick={logout}
-                className="border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300"
+                className="border-border text-muted-foreground hover:text-foreground"
               >
                 Log out
               </Button>
@@ -135,7 +135,7 @@ export default function Navbar() {
             <ThemeToggle />
             <button
               onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="p-2 text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400"
+              className="p-2 text-muted-foreground hover:text-foreground transition-colors"
             >
               {isMenuOpen ? (
                 <X className="w-6 h-6" />
@@ -148,19 +148,19 @@ export default function Navbar() {
 
         {/* Mobile Menu */}
         {isMenuOpen && (
-          <div className="md:hidden mt-4 pt-4 pb-4 border-t border-gray-200 dark:border-gray-700 space-y-4">
-            <Link href="/#features" onClick={() => setIsMenuOpen(false)} className="block text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400">
+          <div className="md:hidden mt-4 pt-4 pb-4 border-t border-border space-y-4">
+            <Link href="/#features" onClick={() => setIsMenuOpen(false)} className="block text-muted-foreground hover:text-foreground transition-colors">
               Features
             </Link>
-            <Link href="/#use-cases" onClick={() => setIsMenuOpen(false)} className="block text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400">
+            <Link href="/#use-cases" onClick={() => setIsMenuOpen(false)} className="block text-muted-foreground hover:text-foreground transition-colors">
               Use Cases
             </Link>
-            <Link href="/#why-stellar" onClick={() => setIsMenuOpen(false)} className="block text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400">
+            <Link href="/#why-stellar" onClick={() => setIsMenuOpen(false)} className="block text-muted-foreground hover:text-foreground transition-colors">
               Why Stellar
             </Link>
 
             {isAuthenticated && (
-              <Link href="/dashboard" onClick={() => setIsMenuOpen(false)} className="block text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400">
+              <Link href="/dashboard" onClick={() => setIsMenuOpen(false)} className="block text-muted-foreground hover:text-foreground transition-colors">
                 Dashboard
               </Link>
             )}
@@ -181,7 +181,7 @@ export default function Navbar() {
                   logout();
                   setIsMenuOpen(false);
                 }}
-                className="w-full border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300"
+                className="w-full border-border text-muted-foreground hover:text-foreground"
               >
                 Log out
               </Button>
