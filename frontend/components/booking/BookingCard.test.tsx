@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
+import "@testing-library/jest-dom";
 import { BookingCard, type BookingProps } from "./BookingCard";
 
 vi.mock("next/link", () => ({
@@ -10,6 +11,12 @@ vi.mock("next/link", () => ({
     children: React.ReactNode;
     href: string;
   }) => <a href={href}>{children}</a>,
+}));
+
+vi.mock("../../context/CurrencyContext", () => ({
+  useCurrency: () => ({
+    format: (amount: number) => `${amount} XLM`,
+  }),
 }));
 
 const defaultDate = new Date("2026-02-15T10:00:00");

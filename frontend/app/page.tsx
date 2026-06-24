@@ -37,30 +37,25 @@ export default function Home() {
   ];
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-background">
       <Navbar />
 
       <main>
-        {/* Hero */}
         <Hero />
-
-        {/* Features */}
         <FeatureGrid />
-
-        {/* Use Cases */}
         <UseCases />
 
         {/* Why Stellar */}
-        <section className="py-20 bg-white" id="why-stellar">
+        <section className="py-20 bg-background" id="why-stellar">
           <div className="container mx-auto px-6 max-w-6xl">
             <div className="text-center mb-16">
-              <span className="text-blue-600 font-semibold text-sm uppercase tracking-wide">
+              <span className="text-blue-600 dark:text-blue-400 font-semibold text-sm uppercase tracking-wide">
                 Technology
               </span>
-              <h2 className="text-4xl font-bold text-gray-900 mt-4">
+              <h2 className="text-4xl font-bold text-foreground mt-4">
                 Why Stellar Blockchain?
               </h2>
-              <p className="text-xl text-gray-600 mt-4 max-w-2xl mx-auto">
+              <p className="text-xl text-muted-foreground mt-4 max-w-2xl mx-auto">
                 Built on enterprise-grade blockchain technology for security and
                 speed
               </p>
@@ -70,7 +65,7 @@ export default function Home() {
               {whyStellar.map((reason, index) => (
                 <Card
                   key={index}
-                  className="bg-gradient-to-br from-gray-50 to-blue-50 border-none shadow-lg"
+                  className="bg-gradient-to-br from-muted/50 to-blue-50 dark:to-blue-900/20 border-none shadow-lg"
                 >
                   <CardContent className="p-8">
                     <div className="flex items-start space-x-4">
@@ -78,10 +73,10 @@ export default function Home() {
                         <reason.icon className="w-6 h-6 text-white" />
                       </div>
                       <div>
-                        <h3 className="text-xl font-bold text-gray-900 mb-2">
+                        <h3 className="text-xl font-bold text-foreground mb-2">
                           {reason.title}
                         </h3>
-                        <p className="text-gray-600 leading-relaxed">
+                        <p className="text-muted-foreground leading-relaxed">
                           {reason.description}
                         </p>
                       </div>
@@ -93,7 +88,7 @@ export default function Home() {
           </div>
         </section>
 
-        {/* CTA */}
+        {/* CTA — intentionally stays brand blue in both modes */}
         <section className="py-20 bg-gradient-to-br from-blue-600 to-blue-700">
           <div className="container mx-auto px-6 max-w-4xl text-center">
             <h2 className="text-4xl font-bold text-white mb-6">
