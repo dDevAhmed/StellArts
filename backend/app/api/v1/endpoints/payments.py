@@ -86,9 +86,7 @@ def my_payments(
     elif current_user.role == "artisan":
         from app.models.artisan import Artisan
 
-        artisan = (
-            db.query(Artisan).filter(Artisan.user_id == current_user.id).first()
-        )
+        artisan = db.query(Artisan).filter(Artisan.user_id == current_user.id).first()
         if artisan:
             booking_ids = [
                 row[0]

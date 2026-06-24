@@ -1,4 +1,5 @@
 """Test that stub endpoints now perform actual database operations."""
+
 from fastapi import status
 
 
