@@ -1,5 +1,10 @@
+import { Suspense } from "react";
 import { LoginForm } from "@/components/auth/LoginForm";
 import Link from "next/link";
+
+function LoginFormFallback() {
+  return <p className="text-center text-sm text-gray-500">Loading form…</p>;
+}
 
 export default function LoginPage() {
   return (
@@ -15,7 +20,9 @@ export default function LoginPage() {
         </div>
         
         <div className="px-8 pb-8">
-          <LoginForm />
+          <Suspense fallback={<LoginFormFallback />}>
+            <LoginForm />
+          </Suspense>
           
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-600">

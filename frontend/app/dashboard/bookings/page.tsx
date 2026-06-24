@@ -1,152 +1,120 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import Navbar from "../../../components/ui/Navbar";
-import Footer from "../../../components/ui/Footer";
+import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
+import { BookingCard } from "@/components/bookings/BookingCard";
+import { BookingFilters } from "@/components/bookings/BookingFilters";
 import {
   Card,
   CardContent,
-  CardHeader,
-  CardTitle,
-} from "../../../components/ui/card";
-import { api, type BookingResponse } from "../../../lib/api";
-import { useAuth } from "../../../context/AuthContext";
-import { Calendar, ArrowLeft } from "lucide-react";
-import Price from "../../../components/ui/Price";
-import EscrowStepper, {
-  type EscrowStatus,
-} from "../../../components/bookings/EscrowStepper";
+} from "@/components/ui/card";
+import { api, type BookingResponse, type BookingStatus } from "@/lib/api";
+import { filterBookings, type BookingFilter } from "@/lib/bookings";
+import { useAuth } from "@/context/AuthContext";
+import { useToast } from "@/context/ToastContext";
 
 export default function DashboardBookingsPage() {
-  const router = useRouter();
-  const { token, isAuthenticated, isLoading } = useAuth();
+  const { token, user } = useAuth();
+  const { addToast } = useToast();
   const [bookings, setBookings] = useState<BookingResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [activeFilter, setActiveFilter] = useState<BookingFilter>("all");
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      router.replace("/login?redirect=/dashboard/bookings");
-      return;
-    }
+  const loadBookings = useCallback(async () => {
     if (!token) return;
     setLoading(true);
-    api.bookings
-      .myBookings(token)
-      .then(setBookings)
-      .catch((err) =>
-        setError(
-          err instanceof Error ? err.message : "Failed to load bookings",
-        ),
-      )
-      .finally(() => setLoading(false));
-  }, [token, isAuthenticated, isLoading, router]);
+    setError("");
+    try {
+      const data = await api.bookings.myBookings(token);
+      setBookings(data);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to load bookings",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
 
-  if (!isAuthenticated && !isLoading) return null;
+  useEffect(() => {
+    loadBookings();
+  }, [loadBookings]);
+
+  const handleStatusUpdate = async (
+    bookingId: string,
+    status: BookingStatus,
+  ) => {
+    if (!token) return;
+
+    const previous = bookings;
+    setUpdatingId(bookingId);
+    setBookings((current) =>
+      current.map((booking) =>
+        booking.id === bookingId ? { ...booking, status } : booking,
+      ),
+    );
+
+    try {
+      await api.bookings.updateStatus(bookingId, status, token);
+      addToast(`Booking ${status.replace("_", " ")}`, "success");
+    } catch (err) {
+      setBookings(previous);
+      addToast(
+        err instanceof Error ? err.message : "Failed to update booking",
+        "error",
+      );
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  const filteredBookings = filterBookings(bookings, activeFilter);
+  const userRole = user?.role ?? "client";
 
   return (
-    <div className="min-h-screen bg-white">
-      <Navbar />
-      <main className="pt-24 pb-16 px-4 max-w-4xl mx-auto">
-        <Link
-          href="/dashboard"
-          className="inline-flex items-center text-gray-600 hover:text-blue-600 mb-6"
-        >
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Dashboard
-        </Link>
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">My Bookings</h1>
-        <p className="text-gray-600 mb-8">
-          View and manage your booking requests.
-        </p>
+    <>
+      <DashboardHeader
+        title="My Bookings"
+        description="View and manage your booking requests."
+      />
 
-        {error && (
-          <p className="text-red-600 bg-red-50 p-4 rounded-lg mb-6">{error}</p>
-        )}
+      {error && (
+        <p className="mb-6 rounded-lg bg-red-50 p-4 text-red-600">{error}</p>
+      )}
 
-        {loading ? (
-          <p className="text-gray-500">Loading…</p>
-        ) : bookings.length === 0 ? (
-          <Card>
-            <CardContent className="p-8 text-center text-gray-500">
-              No bookings yet.{" "}
-              <Link href="/artisans" className="text-blue-600 hover:underline">
-                Find an artisan
-              </Link>{" "}
-              to create one.
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-4">
-            {bookings.map((b) => (
-              <Card key={b.id}>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-lg">{b.service}</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  <p className="text-sm text-gray-600 flex items-center gap-2">
-                    <Calendar className="w-4 h-4" />
-                    {b.date
-                      ? new Date(b.date).toLocaleString()
-                      : "Date not set"}
-                  </p>
-                  <p className="text-sm">
-                    Cost:{" "}
-                    {b.estimated_cost != null ? (
-                      <Price amount={Number(b.estimated_cost)} />
-                    ) : (
-                      "—"
-                    )}
-                  </p>
-                  <p className="text-sm">
-                    Status:{" "}
-                    <span
-                      className={
-                        b.status === "completed"
-                          ? "text-green-600"
-                          : b.status === "cancelled"
-                            ? "text-gray-500"
-                            : "text-blue-600"
-                      }
-                    >
-                      {b.status}
-                    </span>
-                  </p>
+      <BookingFilters
+        activeFilter={activeFilter}
+        onFilterChange={setActiveFilter}
+      />
 
-                  <EscrowStepper
-                    bookingId={b.id}
-                    initialStatus={
-                      b.status === "completed"
-                        ? "RELEASED"
-                        : (b.status as EscrowStatus) === "FUNDED"
-                          ? "FUNDED"
-                          : (b.status as EscrowStatus) === "DISPUTED"
-                            ? "DISPUTED"
-                            : "HELD"
-                    }
-                    serviceName={b.service}
-                    amount={b.estimated_cost ?? 0}
-                    artisanId={b.artisan_id}
-                    artisanName={b.artisan_name || "Artisan"}
-                  />
-
-                  <div className="pt-2">
-                    <Link
-                      href={`/artisans/${b.artisan_id}`}
-                      className="text-sm text-blue-600 hover:underline"
-                    >
-                      View artisan
-                    </Link>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
-      </main>
-      <Footer />
-    </div>
+      {loading ? (
+        <p className="text-gray-500">Loading bookings…</p>
+      ) : filteredBookings.length === 0 ? (
+        <Card>
+          <CardContent className="p-8 text-center text-gray-500">
+            No bookings yet.{" "}
+            <Link href="/artisans" className="text-blue-600 hover:underline">
+              Find Artisans
+            </Link>{" "}
+            to create one.
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-4">
+          {filteredBookings.map((booking) => (
+            <BookingCard
+              key={booking.id}
+              booking={booking}
+              userRole={userRole}
+              onStatusUpdate={handleStatusUpdate}
+              isUpdating={updatingId === booking.id}
+            />
+          ))}
+        </div>
+      )}
+    </>
   );
 }
