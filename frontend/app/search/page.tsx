@@ -1,5 +1,6 @@
-
-import { type FC, useState } from 'react';
+"use client";
+import { type FC, useState, useEffect } from 'react';
+import { SearchX } from 'lucide-react';
 import FacetedSidebar from '@/components/search/FacetedSidebar';
 import ResultCard from '@/components/search/ResultCard';
 import { type SearchResult } from '@/components/search/types';
@@ -79,7 +80,12 @@ const SearchPage: FC = () => {
       if (dateRange.startDate === '' || dateRange.endDate === '') {
         return true;
       }
-      const resultDate = new Date(result.date);
+      let dateString = '';
+      if (result.type === 'transaction') dateString = result.date;
+      if (result.type === 'document') dateString = result.lastModified;
+      if (!dateString) return true;
+      
+      const resultDate = new Date(dateString);
       const startDate = new Date(dateRange.startDate);
       const endDate = new Date(dateRange.endDate);
       return resultDate >= startDate && resultDate <= endDate;
@@ -136,10 +142,11 @@ const SearchPage: FC = () => {
                   </div>
                 ))
             ) : (
-              <div className="text-center py-10">
-                <h2 className="text-xl font-semibold">No Results Found</h2>
-                <p className="text-gray-500">
-                  Try searching for something else.
+              <div className="flex flex-col items-center justify-center py-10 text-center">
+                <SearchX className="w-16 h-16 text-gray-400 mb-4" />
+                <h2 className="text-xl font-semibold text-gray-700">No Results Found</h2>
+                <p className="text-gray-500 mt-2">
+                  We couldn&apos;t find anything matching your criteria. Try adjusting your filters or searching for something else.
                 </p>
               </div>
             )}

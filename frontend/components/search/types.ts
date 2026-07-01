@@ -6,6 +6,7 @@ export type SearchResult =
       name: string;
       avatar: string;
       role: string;
+      status?: string;
     }
   | {
       type: 'document';
